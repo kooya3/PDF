@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { hybridDocumentStore } from '@/lib/memory-only-hybrid-store';
+import { hybridDocumentStore } from '@/lib/hybrid-document-store';
 
 export async function GET(request: NextRequest) {
   try {

@@ -36,14 +36,7 @@ export class HybridDocumentStore {
         textPreview: metadata.textPreview,
         messageCount: metadata.messageCount,
         lastChatAt: metadata.lastChatAt?.getTime(),
-        embeddings: metadata.embeddings,
-        tags: metadata.tags,
-        folderId: metadata.folderId,
-        version: metadata.version,
-        parentDocumentId: metadata.parentDocumentId,
-        versionNotes: metadata.versionNotes,
-        totalViews: metadata.totalViews,
-        lastViewedAt: metadata.lastViewedAt?.getTime()
+        embeddings: metadata.embeddings
       });
     } catch (error) {
       console.error('Error storing document in Convex:', error);

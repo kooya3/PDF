@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { hybridDocumentStore } from '@/lib/memory-only-hybrid-store';
+import { hybridDocumentStore } from '@/lib/hybrid-document-store';
+import { convex } from '@/lib/convex-client';
+import { api } from '@/convex/api';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const SUPPORTED_FORMATS = ['txt', 'md', 'csv', 'json', 'html'];
@@ -263,6 +265,25 @@ export async function POST(request: NextRequest) {
         });
         
         console.log(`Document processing completed: ${docId} - ${wordCount} words, ${chunks.length} chunks`);
+        
+        // Track analytics event
+        try {
+          await convex.mutation(api.analytics.trackEvent, {
+            userId,
+            eventType: 'document_upload',
+            documentId: docId,
+            eventData: {
+              fileName: file.name,
+              fileSize: file.size,
+              fileType: fileExtension,
+              wordCount,
+              chunkCount: chunks.length,
+              processingTime: Date.now() - documentMetadata.createdAt.getTime()
+            }
+          });
+        } catch (analyticsError) {
+          console.error('Error tracking analytics:', analyticsError);
+        }
       } catch (error) {
         console.error(`Error processing document ${docId}:`, error);
         await hybridDocumentStore.updateDocumentStatus(docId, 'failed', 0, {

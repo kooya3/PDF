@@ -36,6 +36,19 @@ export interface DocumentMetadata {
   // Chat context
   messageCount: number;
   lastChatAt?: Date;
+  
+  // Document organization
+  tags?: string[];
+  folderId?: string;
+  
+  // Document versioning
+  version?: number;
+  parentDocumentId?: string;
+  versionNotes?: string;
+  
+  // Analytics
+  totalViews?: number;
+  lastViewedAt?: Date;
 }
 
 export interface DocumentContent {

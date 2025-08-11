@@ -1,0 +1,20 @@
+Test Document for Convex Persistence
+=====================================
+
+This is a test document to verify that the Convex integration is working properly.
+
+Key points to test:
+1. Document upload and processing
+2. Content extraction and chunking
+3. Persistent storage in Convex database
+4. Real-time status updates
+5. Chat functionality with RAG
+
+The document should be:
+- Uploaded successfully
+- Processed with text extraction
+- Stored in both memory and Convex
+- Available for chat interactions
+- Persistent across browser sessions
+
+This test verifies the complete end-to-end workflow from upload to chat.

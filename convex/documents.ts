@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 
-// Document schema
+// Enhanced document schema with new fields
 export const documentSchema = v.object({
   id: v.string(),
   userId: v.string(),
@@ -44,7 +44,20 @@ export const documentSchema = v.object({
     model: v.string(),
     dimensions: v.number(),
     chunks: v.number()
-  }))
+  })),
+  
+  // Document organization (new fields)
+  tags: v.optional(v.array(v.string())),
+  folderId: v.optional(v.string()),
+  
+  // Document versioning (new fields)
+  version: v.optional(v.number()),
+  parentDocumentId: v.optional(v.string()),
+  versionNotes: v.optional(v.string()),
+  
+  // Analytics (new fields)
+  totalViews: v.optional(v.number()),
+  lastViewedAt: v.optional(v.number())
 });
 
 // Create or update document
@@ -222,5 +235,216 @@ export const incrementMessageCount = mutation({
     });
 
     return { success: true };
+  },
+});
+
+// Track document view
+export const trackDocumentView = mutation({
+  args: { docId: v.string(), userId: v.string() },
+  handler: async (ctx, args) => {
+    const document = await ctx.db
+      .query("documents")
+      .filter((q) => 
+        q.and(
+          q.eq(q.field("id"), args.docId),
+          q.eq(q.field("userId"), args.userId)
+        )
+      )
+      .first();
+
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    await ctx.db.patch(document._id, {
+      totalViews: (document.totalViews || 0) + 1,
+      lastViewedAt: Date.now(),
+      updatedAt: Date.now()
+    });
+
+    return { success: true };
+  },
+});
+
+// Add tags to document
+export const addDocumentTags = mutation({
+  args: { 
+    docId: v.string(), 
+    userId: v.string(), 
+    tags: v.array(v.string()) 
+  },
+  handler: async (ctx, args) => {
+    const document = await ctx.db
+      .query("documents")
+      .filter((q) => 
+        q.and(
+          q.eq(q.field("id"), args.docId),
+          q.eq(q.field("userId"), args.userId)
+        )
+      )
+      .first();
+
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    const currentTags = new Set(document.tags || []);
+    args.tags.forEach(tag => currentTags.add(tag.toLowerCase().trim()));
+
+    await ctx.db.patch(document._id, {
+      tags: Array.from(currentTags),
+      updatedAt: Date.now()
+    });
+
+    return { success: true };
+  },
+});
+
+// Remove tags from document
+export const removeDocumentTags = mutation({
+  args: { 
+    docId: v.string(), 
+    userId: v.string(), 
+    tags: v.array(v.string()) 
+  },
+  handler: async (ctx, args) => {
+    const document = await ctx.db
+      .query("documents")
+      .filter((q) => 
+        q.and(
+          q.eq(q.field("id"), args.docId),
+          q.eq(q.field("userId"), args.userId)
+        )
+      )
+      .first();
+
+    if (!document) {
+      throw new Error("Document not found");
+    }
+
+    const currentTags = new Set(document.tags || []);
+    args.tags.forEach(tag => currentTags.delete(tag.toLowerCase().trim()));
+
+    await ctx.db.patch(document._id, {
+      tags: Array.from(currentTags),
+      updatedAt: Date.now()
+    });
+
+    return { success: true };
+  },
+});
+
+// Get documents by tags
+export const getDocumentsByTags = query({
+  args: { 
+    userId: v.string(), 
+    tags: v.array(v.string()),
+    matchAll: v.optional(v.boolean()) // true = match ALL tags, false = match ANY tag
+  },
+  handler: async (ctx, args) => {
+    const documents = await ctx.db
+      .query("documents")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+
+    const searchTags = args.tags.map(tag => tag.toLowerCase().trim());
+    const matchAll = args.matchAll || false;
+
+    return documents.filter(doc => {
+      const docTags = doc.tags || [];
+      if (matchAll) {
+        return searchTags.every(tag => docTags.includes(tag));
+      } else {
+        return searchTags.some(tag => docTags.includes(tag));
+      }
+    }).sort((a, b) => b.createdAt - a.createdAt);
+  },
+});
+
+// Create document version
+export const createDocumentVersion = mutation({
+  args: {
+    originalDocId: v.string(),
+    userId: v.string(),
+    newDocumentData: documentSchema,
+    versionNotes: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    const originalDoc = await ctx.db
+      .query("documents")
+      .filter((q) => 
+        q.and(
+          q.eq(q.field("id"), args.originalDocId),
+          q.eq(q.field("userId"), args.userId)
+        )
+      )
+      .first();
+
+    if (!originalDoc) {
+      throw new Error("Original document not found");
+    }
+
+    // Get current version count for this document
+    const versions = await ctx.db
+      .query("documents")
+      .filter((q) => q.eq(q.field("parentDocumentId"), args.originalDocId))
+      .collect();
+
+    const newVersion = versions.length + 2; // +1 for new version, +1 because original is version 1
+
+    // Create new version
+    return await ctx.db.insert("documents", {
+      ...args.newDocumentData,
+      parentDocumentId: args.originalDocId,
+      version: newVersion,
+      versionNotes: args.versionNotes,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+  },
+});
+
+// Get document versions
+export const getDocumentVersions = query({
+  args: { docId: v.string(), userId: v.string() },
+  handler: async (ctx, args) => {
+    // Get the main document
+    const mainDoc = await ctx.db
+      .query("documents")
+      .filter((q) => 
+        q.and(
+          q.eq(q.field("id"), args.docId),
+          q.eq(q.field("userId"), args.userId)
+        )
+      )
+      .first();
+
+    if (!mainDoc) {
+      throw new Error("Document not found");
+    }
+
+    // Get all versions (including the original)
+    const versions = await ctx.db
+      .query("documents")
+      .filter((q) => 
+        q.or(
+          q.eq(q.field("id"), args.docId),
+          q.eq(q.field("parentDocumentId"), args.docId)
+        )
+      )
+      .collect();
+
+    return versions
+      .sort((a, b) => (a.version || 1) - (b.version || 1))
+      .map(doc => ({
+        id: doc.id,
+        version: doc.version || 1,
+        name: doc.name,
+        createdAt: doc.createdAt,
+        versionNotes: doc.versionNotes,
+        size: doc.size,
+        wordCount: doc.wordCount,
+        isOriginal: doc.id === args.docId
+      }));
   },
 });

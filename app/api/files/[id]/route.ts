@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { hybridDocumentStore } from '@/lib/memory-only-hybrid-store';
+import { hybridDocumentStore } from '@/lib/hybrid-document-store';
+import { convex } from '@/lib/convex-client';
+import { api } from '@/convex/api';
 
 export async function GET(
   request: NextRequest,
@@ -38,6 +40,22 @@ export async function GET(
         { error: 'Unauthorized - you do not own this file' },
         { status: 403 }
       );
+    }
+
+    // Track document view analytics
+    try {
+      await convex.mutation(api.analytics.trackEvent, {
+        userId,
+        eventType: 'document_view',
+        documentId: id,
+        eventData: {
+          documentName: documentWithContent.metadata.name,
+          viewType: request.nextUrl.searchParams.get('includeContent') === 'true' ? 'full' : 'metadata',
+          documentType: documentWithContent.metadata.type
+        }
+      });
+    } catch (analyticsError) {
+      console.error('Error tracking document view:', analyticsError);
     }
 
     return NextResponse.json({

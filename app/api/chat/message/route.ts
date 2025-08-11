@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { hybridDocumentStore } from '@/lib/memory-only-hybrid-store';
+import { hybridDocumentStore } from '@/lib/hybrid-document-store';
 import { enhancedRAG } from '@/lib/enhanced-rag';
+import { convex } from '@/lib/convex-client';
+import { api } from '@/convex/api';
 
 export async function POST(request: NextRequest) {
   try {
@@ -88,6 +90,58 @@ export async function POST(request: NextRequest) {
 
     // Update document chat statistics
     await hybridDocumentStore.incrementMessageCount(docId, userId);
+
+    // Track chat analytics and persist conversation
+    const chatStartTime = Date.now();
+    try {
+      // Track analytics event
+      await convex.mutation(api.analytics.trackEvent, {
+        userId,
+        eventType: 'chat_message',
+        documentId: docId,
+        eventData: {
+          messageLength: message.length,
+          responseLength: aiResponse.length,
+          processingTime: Date.now() - chatStartTime,
+          documentName: documentWithContent.metadata.name
+        }
+      });
+
+      // Persist conversation history
+      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Add user message
+      await convex.mutation(api.conversations.upsertConversation, {
+        documentId: docId,
+        userId,
+        message: {
+          id: messageId,
+          role: 'user',
+          content: message,
+          timestamp: chatStartTime
+        }
+      });
+
+      // Add AI response
+      const responseId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await convex.mutation(api.conversations.upsertConversation, {
+        documentId: docId,
+        userId,
+        message: {
+          id: responseId,
+          role: 'assistant',
+          content: aiResponse,
+          timestamp: Date.now(),
+          metadata: {
+            processingTime: Date.now() - chatStartTime,
+            relevantChunks: [], // Could be enhanced to track which chunks were used
+            confidence: 0.8 // Placeholder confidence score
+          }
+        }
+      });
+    } catch (analyticsError) {
+      console.error('Error tracking chat analytics/conversation:', analyticsError);
+    }
 
     return NextResponse.json({
       success: true,

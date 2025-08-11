@@ -4,13 +4,27 @@ import { documentStore } from '@/lib/memory-store';
 // Simplified version to avoid import issues
 async function checkOllamaStatus() {
   try {
-    const response = await fetch('http://localhost:11434/api/version');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+    
+    const response = await fetch('http://localhost:11434/api/version', {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
     if (!response.ok) {
       return { available: false, hasModel: false, error: 'Ollama server not responding' };
     }
     
-    // Check for models
-    const modelsResponse = await fetch('http://localhost:11434/api/tags');
+    // Check for models with timeout
+    const modelsController = new AbortController();
+    const modelsTimeoutId = setTimeout(() => modelsController.abort(), 3000);
+    
+    const modelsResponse = await fetch('http://localhost:11434/api/tags', {
+      signal: modelsController.signal
+    });
+    clearTimeout(modelsTimeoutId);
+    
     if (!modelsResponse.ok) {
       return { available: true, hasModel: false, error: 'Cannot list models' };
     }
@@ -36,7 +50,14 @@ async function checkOllamaStatus() {
 
 async function checkChromaStatus() {
   try {
-    const response = await fetch('http://localhost:8000/api/v1/heartbeat');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+    
+    const response = await fetch('http://localhost:8000/api/v1/heartbeat', {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
     // ChromaDB v1 API is deprecated, but if we get any response it's likely running
     return { 
       available: true, 
