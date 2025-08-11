@@ -1,0 +1,25 @@
+This is a test document for validating the document chat functionality.
+
+The document contains several paragraphs of text that can be used to test:
+1. Document parsing and content extraction
+2. Text chunking for better AI processing
+3. Real-time processing updates
+4. Context-aware chat responses
+
+This sample document discusses various topics including:
+- Artificial Intelligence and Machine Learning
+- Document processing workflows
+- Real-time data updates
+- User interface design
+- System architecture
+
+The AI should be able to answer questions about any of these topics based on the content of this document.
+
+Key features to test:
+- Upload and processing workflow
+- Real-time status updates
+- Content-based question answering
+- Document preview functionality
+- Chat interface usability
+
+This document serves as a comprehensive test case for the document chat SaaS application.
