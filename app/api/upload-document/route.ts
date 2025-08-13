@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
           chunkCount: parsedDoc.chunks?.length || 0,
           textPreview,
           embeddings: {
-            model: 'llama3.2',
+            model: process.env.OLLAMA_MODEL || 'tinyllama',
             dimensions: 4096,
             chunks: parsedDoc.chunks?.length || 0
           }
