@@ -646,14 +646,14 @@ CMD ["npm", "start"]
 | `llama3.2` | 4.7GB | Medium | Highest | 8GB | Complex reasoning |
 
 ### **Voice Options (ElevenLabs)**
-| Voice | ID | Gender | Style | Best For |
-|-------|----|----- --|-------|----------|
-| Rachel | `EXAVITQu4vr4xnSDxMaL` | Female | Conversational | Chat responses |
-| Adam | `pNInz6obpgDQGcFmaJgB` | Male | Professional | Document reading |
-| Antoni | `ErXwobaYiN019PkySvjV` | Male | Clear | Technical content |
-| Sam | `yoZ06aMxZJJ28mfd3POQ` | Male | Casual | Friendly interactions |
-| Bella | `EXAVITQu4vr4xnSDxMaL` | Female | Expressive | Dynamic content |
 
+| Voice   | ID                       | Gender | Style          | Best For             |
+|---------|--------------------------|--------|----------------|----------------------|
+| Rachel  | `EXAVITQu4vr4xnSDxMaL`   | Female | Conversational | Chat responses       |
+| Adam    | `pNInz6obpgDQGcFmaJgB`   | Male   | Professional   | Document reading     |
+| Antoni  | `ErXwobaYiN019PkySvjV`   | Male   | Clear          | Technical content    |
+| Sam     | `yoZ06aMxZJJ28mfd3POQ`   | Male   | Casual         | Friendly interactions|
+| Bella   | `EXAVITQu4vr4xnSDxMaL`   | Female | Expressive     | Dynamic content      |
 ---
 
 ## 📈 Roadmap & Future Features
