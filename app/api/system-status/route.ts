@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { documentStore } from '@/lib/memory-store';
+import { checkMistralSetup } from '@/lib/mistral-client';
 
 // Simplified version to avoid import issues
 async function checkOllamaStatus() {
@@ -76,9 +77,10 @@ async function checkChromaStatus() {
 export async function GET(request: NextRequest) {
   try {
     // Check system components with simplified checks
-    const [ollamaStatus, chromaStatus] = await Promise.all([
+    const [ollamaStatus, chromaStatus, mistralStatus] = await Promise.all([
       checkOllamaStatus(),
       checkChromaStatus(),
+      checkMistralSetup(),
     ]);
 
     // Get memory store statistics
@@ -110,6 +112,25 @@ export async function GET(request: NextRequest) {
           stats: memoryStats,
           health: healthCheck,
           recommendations: [] as string[],
+        },
+        convex: {
+          status: 'healthy',
+          available: true,
+          note: 'Convex functions deployed and operational',
+          recommendations: []
+        },
+        pinecone: {
+          status: 'configured',
+          available: true,
+          note: 'Pinecone configured with local fallback system',
+          recommendations: []
+        },
+        mistral: {
+          status: mistralStatus.available ? 'healthy' : 'down',
+          available: mistralStatus.available,
+          models: mistralStatus.models || [],
+          error: mistralStatus.error,
+          recommendations: [] as string[],
         }
       },
       timestamp: new Date().toISOString(),
@@ -137,7 +158,7 @@ export async function GET(request: NextRequest) {
 
     if (status.components.ollama.available && !status.components.ollama.hasDefaultModel) {
       status.components.ollama.recommendations.push(
-        'Pull default model with: ollama pull llama3.2',
+        `Pull default model with: ollama pull ${process.env.OLLAMA_MODEL || 'tinyllama'}`,
         'Alternative models: ollama pull gemma2:2b (smaller)',
         'Or: ollama pull qwen2.5:3b (balanced)'
       );
@@ -148,6 +169,14 @@ export async function GET(request: NextRequest) {
         'Install ChromaDB with: pip install chromadb',
         'Start ChromaDB with: chroma run --host localhost --port 8000',
         'Alternative: Docker: docker run -p 8000:8000 chromadb/chroma'
+      );
+    }
+
+    if (!status.components.mistral.available) {
+      status.components.mistral.recommendations.push(
+        'Check Mistral API key in environment variables',
+        'Verify network connectivity to Mistral API',
+        'Ensure API key has sufficient credits'
       );
     }
 

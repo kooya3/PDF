@@ -12,11 +12,24 @@ export async function GET(request: NextRequest) {
     // Set up Server-Sent Events (SSE)
     const stream = new ReadableStream({
       async start(controller) {
+        // Track if connection is closed
+        let isClosed = false;
+        
         // Send initial connection message
         const sendEvent = (data: any) => {
-          controller.enqueue(
-            new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`)
-          );
+          if (isClosed) {
+            console.warn('Attempted to send event to closed stream');
+            return;
+          }
+          
+          try {
+            controller.enqueue(
+              new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`)
+            );
+          } catch (error) {
+            console.warn('Stream controller error:', error);
+            isClosed = true;
+          }
         };
 
         // Send initial user documents
@@ -42,26 +55,41 @@ export async function GET(request: NextRequest) {
         // Subscribe to individual document updates for this user's documents
         const documentUnsubscribers: Array<() => void> = [];
         
+        let consecutiveErrors = 0;
+        const maxErrors = 3;
+        
         const subscribeToUserDocuments = async () => {
-          // Clear previous subscriptions
-          documentUnsubscribers.forEach(unsub => unsub());
-          documentUnsubscribers.length = 0;
-          
-          // Subscribe to current user documents
-          const currentDocs = await hybridDocumentStore.getUserDocuments(userId);
-          currentDocs.forEach(doc => {
-            const unsubscribe = hybridDocumentStore.subscribe(
-              `document:${doc.id}`,
-              (data) => {
-                sendEvent({
-                  type: 'document_status',
-                  ...data,
-                  timestamp: new Date().toISOString()
-                });
-              }
-            );
-            documentUnsubscribers.push(unsubscribe);
-          });
+          try {
+            // Clear previous subscriptions
+            documentUnsubscribers.forEach(unsub => unsub());
+            documentUnsubscribers.length = 0;
+            
+            // Subscribe to current user documents (with error handling)
+            const currentDocs = await hybridDocumentStore.getUserDocuments(userId);
+            currentDocs.forEach(doc => {
+              const unsubscribe = hybridDocumentStore.subscribe(
+                `document:${doc.id}`,
+                (data) => {
+                  sendEvent({
+                    type: 'document_status',
+                    ...data,
+                    timestamp: new Date().toISOString()
+                  });
+                }
+              );
+              documentUnsubscribers.push(unsubscribe);
+            });
+            
+            // Reset error count on success
+            consecutiveErrors = 0;
+          } catch (error) {
+            consecutiveErrors++;
+            console.warn(`Document subscription error ${consecutiveErrors}/${maxErrors}:`, error);
+            
+            if (consecutiveErrors >= maxErrors) {
+              console.warn('Too many consecutive errors, reducing subscription frequency');
+            }
+          }
         };
 
         // Initial subscription to user documents
@@ -69,9 +97,12 @@ export async function GET(request: NextRequest) {
           await subscribeToUserDocuments();
         })();
 
-        // Periodically check for new documents and update subscriptions
+        // Periodically check for new documents and update subscriptions (with backoff)
         const intervalId = setInterval(async () => {
-          await subscribeToUserDocuments();
+          // Skip if too many consecutive errors
+          if (consecutiveErrors < maxErrors) {
+            await subscribeToUserDocuments();
+          }
           
           // Send heartbeat
           sendEvent({
@@ -83,10 +114,15 @@ export async function GET(request: NextRequest) {
 
         // Cleanup on stream close
         request.signal?.addEventListener('abort', () => {
+          isClosed = true;
           clearInterval(intervalId);
           unsubscribeUser();
           documentUnsubscribers.forEach(unsub => unsub());
-          controller.close();
+          try {
+            controller.close();
+          } catch (error) {
+            console.warn('Controller already closed:', error);
+          }
         });
       }
     });

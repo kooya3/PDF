@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { hybridDocumentStore } from '@/lib/hybrid-document-store';
 import { enhancedRAG } from '@/lib/enhanced-rag';
+import { hybridChatService, type ModelProvider } from '@/lib/hybrid-chat-service';
 import { convex } from '@/lib/convex-client';
 import { api } from '@/convex/api';
 
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { message, docId } = body;
+    const { message, docId, forceProvider, temperature, maxTokens, useHybridRouting = true } = body;
 
     if (!message || !docId) {
       return NextResponse.json(
@@ -68,24 +69,91 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for special commands
+    // Check for special commands and get chat history
     let aiResponse: string;
+    let provider: ModelProvider = 'ollama';
+    let model: string = 'llama3.2';
+    let reasoning: string = 'Default assignment';
+
+    // Get conversation history for context
+    let chatHistory: Array<{role: string, content: string, timestamp: Date}> = [];
+    try {
+      const conversationHistory = await convex.query(api.conversations.getConversationHistory, {
+        documentId: docId,
+        userId,
+        limit: 10
+      });
+      chatHistory = conversationHistory.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content,
+        timestamp: new Date(msg.timestamp)
+      }));
+    } catch (historyError) {
+      console.log('Could not retrieve chat history:', historyError);
+    }
     
-    if (message.toLowerCase().includes('summarize') || message.toLowerCase().includes('summary')) {
-      aiResponse = await enhancedRAG.summarizeDocument(docId);
-    } else if (message.toLowerCase().includes('extract dates') || message.toLowerCase().includes('find dates')) {
-      aiResponse = await enhancedRAG.extractKeyInfo(docId, 'dates');
-    } else if (message.toLowerCase().includes('extract numbers') || message.toLowerCase().includes('find numbers')) {
-      aiResponse = await enhancedRAG.extractKeyInfo(docId, 'numbers');
-    } else if (message.toLowerCase().includes('extract people') || message.toLowerCase().includes('find people')) {
-      aiResponse = await enhancedRAG.extractKeyInfo(docId, 'people');
-    } else if (message.toLowerCase().includes('extract topics') || message.toLowerCase().includes('main topics')) {
-      aiResponse = await enhancedRAG.extractKeyInfo(docId, 'topics');
-    } else if (message.toLowerCase().includes('action items') || message.toLowerCase().includes('next steps')) {
-      aiResponse = await enhancedRAG.extractKeyInfo(docId, 'actions');
+    if (useHybridRouting) {
+      // Use the new hybrid chat service with intelligent routing
+      try {
+        const chatContext = {
+          documentId: docId,
+          userId,
+          fileName: documentWithContent.metadata.name,
+          history: chatHistory
+        };
+
+        const hybridResult = await hybridChatService.chatWithIntelligentRouting(
+          message,
+          chatContext,
+          {
+            forceProvider: forceProvider as ModelProvider,
+            temperature: temperature || 0.7,
+            maxTokens: maxTokens || 1000
+          }
+        );
+
+        aiResponse = hybridResult.response;
+        provider = hybridResult.provider;
+        model = hybridResult.model;
+        reasoning = hybridResult.reasoning;
+
+      } catch (hybridError) {
+        console.error('Hybrid routing failed, falling back to enhanced RAG:', hybridError);
+        // Fallback to the original enhanced RAG system
+        if (message.toLowerCase().includes('summarize') || message.toLowerCase().includes('summary')) {
+          aiResponse = await enhancedRAG.summarizeDocument(docId);
+        } else if (message.toLowerCase().includes('extract dates') || message.toLowerCase().includes('find dates')) {
+          aiResponse = await enhancedRAG.extractKeyInfo(docId, 'dates');
+        } else if (message.toLowerCase().includes('extract numbers') || message.toLowerCase().includes('find numbers')) {
+          aiResponse = await enhancedRAG.extractKeyInfo(docId, 'numbers');
+        } else if (message.toLowerCase().includes('extract people') || message.toLowerCase().includes('find people')) {
+          aiResponse = await enhancedRAG.extractKeyInfo(docId, 'people');
+        } else if (message.toLowerCase().includes('extract topics') || message.toLowerCase().includes('main topics')) {
+          aiResponse = await enhancedRAG.extractKeyInfo(docId, 'topics');
+        } else if (message.toLowerCase().includes('action items') || message.toLowerCase().includes('next steps')) {
+          aiResponse = await enhancedRAG.extractKeyInfo(docId, 'actions');
+        } else {
+          aiResponse = await enhancedRAG.generateResponse(docId, message);
+        }
+        aiResponse += '\n\n*Note: Using fallback RAG system due to hybrid routing failure*';
+      }
     } else {
-      // Use enhanced RAG for general questions
-      aiResponse = await enhancedRAG.generateResponse(docId, message);
+      // Use original enhanced RAG system
+      if (message.toLowerCase().includes('summarize') || message.toLowerCase().includes('summary')) {
+        aiResponse = await enhancedRAG.summarizeDocument(docId);
+      } else if (message.toLowerCase().includes('extract dates') || message.toLowerCase().includes('find dates')) {
+        aiResponse = await enhancedRAG.extractKeyInfo(docId, 'dates');
+      } else if (message.toLowerCase().includes('extract numbers') || message.toLowerCase().includes('find numbers')) {
+        aiResponse = await enhancedRAG.extractKeyInfo(docId, 'numbers');
+      } else if (message.toLowerCase().includes('extract people') || message.toLowerCase().includes('find people')) {
+        aiResponse = await enhancedRAG.extractKeyInfo(docId, 'people');
+      } else if (message.toLowerCase().includes('extract topics') || message.toLowerCase().includes('main topics')) {
+        aiResponse = await enhancedRAG.extractKeyInfo(docId, 'topics');
+      } else if (message.toLowerCase().includes('action items') || message.toLowerCase().includes('next steps')) {
+        aiResponse = await enhancedRAG.extractKeyInfo(docId, 'actions');
+      } else {
+        aiResponse = await enhancedRAG.generateResponse(docId, message);
+      }
     }
 
     // Update document chat statistics
@@ -135,7 +203,10 @@ export async function POST(request: NextRequest) {
           metadata: {
             processingTime: Date.now() - chatStartTime,
             relevantChunks: [], // Could be enhanced to track which chunks were used
-            confidence: 0.8 // Placeholder confidence score
+            confidence: 0.8, // Placeholder confidence score
+            provider,
+            model,
+            reasoning
           }
         }
       });
@@ -147,6 +218,12 @@ export async function POST(request: NextRequest) {
       success: true,
       response: aiResponse,
       messageCount: (documentWithContent.metadata.messageCount || 0) + 1,
+      aiMetadata: {
+        provider,
+        model,
+        reasoning,
+        usingHybridRouting: useHybridRouting
+      },
       documentInfo: {
         name: documentWithContent.metadata.name,
         type: documentWithContent.metadata.type,
