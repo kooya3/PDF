@@ -1,11 +1,11 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import DocumentChatPageThemed from "@/components/document-chat-page-themed";
+import PineconeDocumentPage from "@/components/PineconeDocumentPage";
 
 export default function ChatPage() {
   const params = useParams();
   const docId = params.id as string;
 
-  return <DocumentChatPageThemed docId={docId} />;
+  return <PineconeDocumentPage docId={docId} />;
 }

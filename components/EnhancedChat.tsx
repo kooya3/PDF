@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useToast } from "./ui/use-toast";
 import { useTTS, TTSTextProcessor } from "@/lib/tts-client";
+import EnhancedTTSControls from "./EnhancedTTSControls";
 import ReactMarkdown from 'react-markdown';
 
 interface Message {
@@ -33,6 +34,8 @@ interface TTSSettings {
   rate: number;
   pitch: number;
   volume: number;
+  useHybrid: boolean;
+  quality: 'basic' | 'good' | 'premium';
 }
 
 interface EnhancedChatProps {
@@ -50,6 +53,8 @@ export default function EnhancedChat({ docId, docName }: EnhancedChatProps) {
     rate: 1,
     pitch: 1,
     volume: 1,
+    useHybrid: true,
+    quality: 'good',
   });
   const [showTTSSettings, setShowTTSSettings] = useState(false);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
@@ -334,6 +339,40 @@ export default function EnhancedChat({ docId, docName }: EnhancedChatProps) {
                 disabled={!ttsSettings.enabled}
               />
             </div>
+
+            {/* Hybrid TTS Options */}
+            <div className="border-t pt-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Use Hybrid System</label>
+                <input
+                  type="checkbox"
+                  checked={ttsSettings.useHybrid}
+                  onChange={(e) => setTTSSettings(prev => ({ ...prev, useHybrid: e.target.checked }))}
+                  disabled={!ttsSettings.enabled}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Quality Level</label>
+                <select
+                  value={ttsSettings.quality}
+                  onChange={(e) => setTTSSettings(prev => ({ ...prev, quality: e.target.value as 'basic' | 'good' | 'premium' }))}
+                  className="w-full p-2 border rounded text-sm"
+                  disabled={!ttsSettings.enabled || !ttsSettings.useHybrid}
+                >
+                  <option value="basic">Basic (Fast, eSpeak)</option>
+                  <option value="good">Good (Balanced, Web Speech/Piper)</option>
+                  <option value="premium">Premium (ElevenLabs)</option>
+                </select>
+              </div>
+
+              <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
+                <p><strong>Hybrid System:</strong></p>
+                <p>• Automatically selects the best TTS provider</p>
+                <p>• Falls back to available options</p>
+                <p>• Premium quality uses ElevenLabs (paid)</p>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -369,20 +408,28 @@ export default function EnhancedChat({ docId, docName }: EnhancedChatProps) {
                     )}
                   </div>
                   
-                  {/* TTS Controls for AI messages */}
-                  {message.role === "ai" && ttsSettings.enabled && ttsSupported && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleTTSPlay(message.content, message.id)}
-                      className="ml-2 p-1 h-8 w-8"
-                    >
-                      {currentlyPlaying === message.id ? (
-                        getStatus().isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />
-                      ) : (
-                        <Volume2 className="h-3 w-3" />
-                      )}
-                    </Button>
+                  {/* Enhanced TTS Controls for AI messages */}
+                  {message.role === "ai" && ttsSettings.enabled && (
+                    <div className="mt-2">
+                      <EnhancedTTSControls
+                        text={message.content}
+                        autoPlay={ttsSettings.autoPlay && message.id === messages[messages.length - 1]?.id}
+                        onPlay={(provider) => {
+                          setCurrentlyPlaying(message.id);
+                          console.log(`Playing with ${provider}`);
+                        }}
+                        onStop={() => setCurrentlyPlaying(null)}
+                        onError={(error) => {
+                          toast({
+                            title: "TTS Error",
+                            description: error,
+                            variant: "destructive",
+                          });
+                        }}
+                        className="scale-90"
+                        enableAdvanced={false} // Simplified view in chat
+                      />
+                    </div>
                   )}
                 </div>
                 
