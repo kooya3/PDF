@@ -1,0 +1,17 @@
+This is a simple test document for the AI chat system.
+
+It contains information about:
+- Testing document processing
+- AI chat functionality  
+- Local embedding fallback system
+- Document viewer integration
+
+Key people mentioned: John Smith, Sarah Johnson
+Important dates: January 15, 2024, March 30, 2025
+Locations: San Francisco, New York, London
+
+Action items:
+1. Test document upload
+2. Verify chat functionality
+3. Check embedding generation
+4. Confirm fallback system works
