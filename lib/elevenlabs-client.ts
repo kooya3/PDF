@@ -440,6 +440,14 @@ export class ElevenLabsClient {
 
 // Create default instance
 const apiKey = process.env.ELEVENLABS_API_KEY || 'sk_355f9dc67536de2da923d55a3e276b8ab19958827e3e6f8f';
+
+// Debug API key loading
+if (!process.env.ELEVENLABS_API_KEY) {
+  console.warn('ELEVENLABS_API_KEY not found in environment, using fallback key');
+} else {
+  console.log('ElevenLabs API key loaded from environment:', process.env.ELEVENLABS_API_KEY?.substring(0, 10) + '...');
+}
+
 export const elevenLabsClient = new ElevenLabsClient(apiKey);
 
 // Helper function to check ElevenLabs setup
