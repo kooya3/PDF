@@ -2,9 +2,11 @@ import { documentStore, DocumentMetadata, DocumentContent } from './memory-store
 import { convex } from './convex-client';
 import { api } from '@/convex/api';
 
+
 /**
  * Hybrid Document Store - Full Convex Integration
  * Combines fast in-memory access with persistent Convex storage
+ * Convex functions are deployed and operational
  */
 export class HybridDocumentStore {
   
@@ -18,6 +20,51 @@ export class HybridDocumentStore {
     // Store in Convex for persistence
     try {
       await convex.mutation(api.documents.upsertDocument, {
+      id: docId,
+      userId: metadata.userId,
+      name: metadata.name,
+      type: metadata.type,
+      size: metadata.size,
+      status: metadata.status,
+      progress: metadata.progress,
+      error: metadata.error,
+      createdAt: metadata.createdAt.getTime(),
+      updatedAt: metadata.updatedAt.getTime(),
+      originalName: metadata.originalName,
+      mimeType: metadata.mimeType,
+      wordCount: metadata.wordCount,
+      pages: metadata.pages,
+      chunkCount: metadata.chunkCount,
+      textPreview: metadata.textPreview,
+      messageCount: metadata.messageCount,
+      lastChatAt: metadata.lastChatAt?.getTime(),
+      embeddings: metadata.embeddings,
+      tags: metadata.tags,
+      folderId: metadata.folderId,
+      version: metadata.version,
+      parentDocumentId: metadata.parentDocumentId,
+      versionNotes: metadata.versionNotes,
+      totalViews: metadata.totalViews,
+      lastViewedAt: metadata.lastViewedAt?.getTime()
+      });
+    } catch (error) {
+      console.warn('Convex error for document storage:', error);
+      throw error; // Re-throw to handle at the application level
+    }
+  }
+
+  /**
+   * Set document content with both storages
+   */
+  async setDocumentContent(docId: string, content: DocumentContent): Promise<void> {
+    // Store in memory
+    documentStore.setDocumentContent(docId, content);
+    
+    // Update Convex with content
+    try {
+      const metadata = documentStore.getDocument(docId);
+      if (metadata) {
+        await convex.mutation(api.documents.upsertDocument, {
         id: docId,
         userId: metadata.userId,
         name: metadata.name,
@@ -37,57 +84,13 @@ export class HybridDocumentStore {
         messageCount: metadata.messageCount,
         lastChatAt: metadata.lastChatAt?.getTime(),
         embeddings: metadata.embeddings,
-        tags: metadata.tags,
-        folderId: metadata.folderId,
-        version: metadata.version,
-        parentDocumentId: metadata.parentDocumentId,
-        versionNotes: metadata.versionNotes,
-        totalViews: metadata.totalViews,
-        lastViewedAt: metadata.lastViewedAt?.getTime()
-      });
-    } catch (error) {
-      console.error('Error storing document in Convex:', error);
-      // Continue with memory-only storage if Convex fails
-    }
-  }
-
-  /**
-   * Set document content with both storages
-   */
-  async setDocumentContent(docId: string, content: DocumentContent): Promise<void> {
-    // Store in memory
-    documentStore.setDocumentContent(docId, content);
-    
-    // Update Convex with content
-    try {
-      const metadata = documentStore.getDocument(docId);
-      if (metadata) {
-        await convex.mutation(api.documents.upsertDocument, {
-          id: docId,
-          userId: metadata.userId,
-          name: metadata.name,
-          type: metadata.type,
-          size: metadata.size,
-          status: metadata.status,
-          progress: metadata.progress,
-          error: metadata.error,
-          createdAt: metadata.createdAt.getTime(),
-          updatedAt: metadata.updatedAt.getTime(),
-          originalName: metadata.originalName,
-          mimeType: metadata.mimeType,
-          wordCount: metadata.wordCount,
-          pages: metadata.pages,
-          chunkCount: metadata.chunkCount,
-          textPreview: metadata.textPreview,
-          messageCount: metadata.messageCount,
-          lastChatAt: metadata.lastChatAt?.getTime(),
-          embeddings: metadata.embeddings,
-          fullText: content.fullText,
-          chunks: content.chunks
+        fullText: content.fullText,
+        chunks: content.chunks
         });
       }
     } catch (error) {
-      console.error('Error storing document content in Convex:', error);
+      console.warn('Convex error for content storage:', error);
+      throw error;
     }
   }
 
@@ -101,10 +104,7 @@ export class HybridDocumentStore {
     if (!doc && userId) {
       // Fallback to Convex
       try {
-        const convexDoc = await convex.query(api.documents.getDocument, {
-          docId,
-          userId
-        });
+        const convexDoc = await convex.query(api.documents.getDocument, { docId, userId }) as any;
         
         if (convexDoc) {
           // Convert Convex document back to memory store format
@@ -145,7 +145,8 @@ export class HybridDocumentStore {
           }
         }
       } catch (error) {
-        console.error('Error fetching document from Convex:', error);
+        console.warn('Convex error for document fetch:', error);
+        // Continue with memory-only mode for graceful fallback
       }
     }
     
@@ -164,10 +165,7 @@ export class HybridDocumentStore {
     // If no content in memory and we have userId, try Convex
     if (!content && userId) {
       try {
-        const convexDoc = await convex.query(api.documents.getDocument, {
-          docId,
-          userId
-        });
+        const convexDoc = await convex.query(api.documents.getDocument, { docId, userId }) as any;
         
         if (convexDoc && convexDoc.fullText) {
           content = {
@@ -181,7 +179,7 @@ export class HybridDocumentStore {
           documentStore.setDocumentContent(docId, content);
         }
       } catch (error) {
-        console.error('Error fetching document content from Convex:', error);
+        console.warn('Convex error for document content:', error);
       }
     }
     
@@ -200,46 +198,44 @@ export class HybridDocumentStore {
     
     // Also get from Convex to ensure we have all documents
     try {
-      const convexDocs = await convex.query(api.documents.getUserDocuments, {
-        userId
+      const convexDocs = await convex.query(api.documents.getUserDocuments, { userId }) as any[];
+    
+    // Convert and merge with memory docs
+    const convexDocsConverted = convexDocs.map(doc => ({
+      id: doc.id,
+      userId: doc.userId,
+      name: doc.name,
+      type: doc.type,
+      size: doc.size,
+      status: doc.status,
+      progress: doc.progress,
+      error: doc.error,
+      createdAt: new Date(doc.createdAt),
+      updatedAt: new Date(doc.updatedAt),
+      originalName: doc.originalName,
+      mimeType: doc.mimeType,
+      wordCount: doc.wordCount,
+      pages: doc.pages,
+      chunkCount: doc.chunkCount,
+      textPreview: doc.textPreview,
+      messageCount: doc.messageCount,
+      lastChatAt: doc.lastChatAt ? new Date(doc.lastChatAt) : undefined,
+      embeddings: doc.embeddings
+    }));
+    
+    // Merge docs, preferring memory versions but including Convex-only docs
+    const memoryDocIds = new Set(docs.map(d => d.id));
+    const additionalDocs = convexDocsConverted.filter(d => !memoryDocIds.has(d.id));
+    
+    docs = [...docs, ...additionalDocs].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    
+    // Update memory store with any missing documents
+    additionalDocs.forEach(doc => {
+      documentStore.setDocument(doc.id, doc);
       });
-      
-      // Convert and merge with memory docs
-      const convexDocsConverted = convexDocs.map(doc => ({
-        id: doc.id,
-        userId: doc.userId,
-        name: doc.name,
-        type: doc.type,
-        size: doc.size,
-        status: doc.status,
-        progress: doc.progress,
-        error: doc.error,
-        createdAt: new Date(doc.createdAt),
-        updatedAt: new Date(doc.updatedAt),
-        originalName: doc.originalName,
-        mimeType: doc.mimeType,
-        wordCount: doc.wordCount,
-        pages: doc.pages,
-        chunkCount: doc.chunkCount,
-        textPreview: doc.textPreview,
-        messageCount: doc.messageCount,
-        lastChatAt: doc.lastChatAt ? new Date(doc.lastChatAt) : undefined,
-        embeddings: doc.embeddings
-      }));
-      
-      // Merge docs, preferring memory versions but including Convex-only docs
-      const memoryDocIds = new Set(docs.map(d => d.id));
-      const additionalDocs = convexDocsConverted.filter(d => !memoryDocIds.has(d.id));
-      
-      docs = [...docs, ...additionalDocs].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-      
-      // Update memory store with any missing documents
-      additionalDocs.forEach(doc => {
-        documentStore.setDocument(doc.id, doc);
-      });
-      
     } catch (error) {
-      console.error('Error fetching user documents from Convex:', error);
+      console.warn('Convex error, using memory-only mode:', error);
+      // Continue with memory-only documents for graceful fallback
     }
     
     return docs;
@@ -265,7 +261,7 @@ export class HybridDocumentStore {
         });
       }
     } catch (error) {
-      console.error('Error updating document status in Convex:', error);
+      console.warn('Convex error for status update:', error);
     }
   }
 
@@ -283,7 +279,7 @@ export class HybridDocumentStore {
         userId
       });
     } catch (error) {
-      console.error('Error deleting document from Convex:', error);
+      console.warn('Convex error for document deletion:', error);
     }
     
     return deleted;
@@ -308,7 +304,7 @@ export class HybridDocumentStore {
         userId
       });
     } catch (error) {
-      console.error('Error incrementing message count in Convex:', error);
+      console.warn('Convex error for message count:', error);
     }
   }
 

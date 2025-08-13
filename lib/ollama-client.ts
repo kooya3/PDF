@@ -332,9 +332,9 @@ export class OllamaClient {
   static getRecommendedModels(): { name: string; description: string; size: string }[] {
     return [
       {
-        name: 'llama3.2',
-        description: 'Best overall performance (recommended)',
-        size: '~3.2GB'
+        name: 'tinyllama',
+        description: 'Fast, lightweight model (recommended for this setup)',
+        size: '~637MB'
       },
       {
         name: 'gemma2:2b',
@@ -378,13 +378,14 @@ export async function checkOllamaSetup(): Promise<{
     }
 
     const models = await ollamaClient.listModels();
-    const hasDefaultModel = await ollamaClient.hasModel('llama3.2');
+    const defaultModel = process.env.OLLAMA_MODEL || 'tinyllama';
+    const hasDefaultModel = await ollamaClient.hasModel(defaultModel);
 
     return {
       available: true,
       hasDefaultModel,
       models,
-      error: hasDefaultModel ? undefined : 'Default model (llama3.2) not found. Pull it with: ollama pull llama3.2'
+      error: hasDefaultModel ? undefined : `Default model (${defaultModel}) not found. Pull it with: ollama pull ${defaultModel}`
     };
   } catch (error) {
     return {

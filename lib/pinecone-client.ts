@@ -19,7 +19,7 @@ export async function initializePineconeIndex() {
       console.log(`Creating Pinecone index: ${PINECONE_INDEX_NAME}`);
       await pinecone.createIndex({
         name: PINECONE_INDEX_NAME,
-        dimension: 1536, // OpenAI embedding dimension
+        dimension: 768, // Nomic embedding dimension
         metric: 'cosine',
         spec: {
           serverless: {

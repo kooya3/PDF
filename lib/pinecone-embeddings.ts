@@ -1,6 +1,6 @@
 import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
-import { OpenAIEmbeddings } from '@langchain/openai';
-import { getPineconeIndex } from './pinecone-client';
+import { OllamaEmbeddings } from '@langchain/ollama';
+import { getPineconeIndex, initializePineconeIndex } from './pinecone-client';
 import { v4 as uuidv4 } from 'uuid';
 
 interface DocumentChunk {
@@ -23,13 +23,13 @@ interface EmbeddingResult {
 }
 
 export class PineconeEmbeddingService {
-  private embeddings: OpenAIEmbeddings;
+  private embeddings: OllamaEmbeddings;
   private textSplitter: RecursiveCharacterTextSplitter;
 
   constructor() {
-    this.embeddings = new OpenAIEmbeddings({
-      openAIApiKey: process.env.OPENAI_API_KEY || 'dummy-key', // Use dummy key for Ollama
-      modelName: 'text-embedding-ada-002',
+    this.embeddings = new OllamaEmbeddings({
+      baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+      model: 'nomic-embed-text', // Specialized embedding model
     });
 
     this.textSplitter = new RecursiveCharacterTextSplitter({
@@ -80,8 +80,8 @@ export class PineconeEmbeddingService {
         });
       }
 
-      // Store in Pinecone
-      const index = await getPineconeIndex();
+      // Store in Pinecone (initialize index if it doesn't exist)
+      const index = await initializePineconeIndex();
       await index.upsert(vectors);
 
       return {
@@ -90,6 +90,14 @@ export class PineconeEmbeddingService {
       };
     } catch (error) {
       console.error('Error generating embeddings:', error);
+      
+      // More detailed error logging
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -107,8 +115,8 @@ export class PineconeEmbeddingService {
       // Generate embedding for the query
       const queryEmbedding = await this.embeddings.embedQuery(query);
 
-      // Search in Pinecone
-      const index = await getPineconeIndex();
+      // Search in Pinecone (initialize index if it doesn't exist)
+      const index = await initializePineconeIndex();
       
       const filter: any = { userId };
       if (documentId) {
@@ -131,11 +139,11 @@ export class PineconeEmbeddingService {
 
   async deleteDocumentEmbeddings(documentId: string, userId: string): Promise<boolean> {
     try {
-      const index = await getPineconeIndex();
+      const index = await initializePineconeIndex();
       
       // First, find all vectors for this document
       const searchResult = await index.query({
-        vector: new Array(1536).fill(0), // Dummy vector
+        vector: new Array(768).fill(0), // Dummy vector
         topK: 1000, // Get many results
         includeMetadata: true,
         filter: {
@@ -161,10 +169,10 @@ export class PineconeEmbeddingService {
     totalTokens: number;
   }> {
     try {
-      const index = await getPineconeIndex();
+      const index = await initializePineconeIndex();
       
       const searchResult = await index.query({
-        vector: new Array(1536).fill(0), // Dummy vector
+        vector: new Array(768).fill(0), // Dummy vector
         topK: 1000,
         includeMetadata: true,
         filter: {

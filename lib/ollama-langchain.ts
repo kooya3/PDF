@@ -304,7 +304,8 @@ export async function checkSystemHealth(): Promise<{
 }> {
   // Check Ollama
   const ollamaAvailable = await ollamaClient.isAvailable();
-  const hasModel = ollamaAvailable ? await ollamaClient.hasModel('llama3.2') : false;
+  const defaultModel = process.env.OLLAMA_MODEL || 'tinyllama';
+  const hasModel = ollamaAvailable ? await ollamaClient.hasModel(defaultModel) : false;
 
   // Check Vector Store
   const vectorStoreAvailable = await vectorStore.isAvailable();
@@ -316,7 +317,7 @@ export async function checkSystemHealth(): Promise<{
       error: !ollamaAvailable 
         ? "Ollama is not running. Please start with: ollama serve"
         : !hasModel 
-        ? "Model llama3.2 not found. Please pull with: ollama pull llama3.2"
+        ? `Model ${defaultModel} not found. Please pull with: ollama pull ${defaultModel}`
         : undefined
     },
     vectorStore: {

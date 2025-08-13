@@ -204,7 +204,7 @@ export class TTSClient {
   }
 
   // Set status change callback
-  onStatusChange(callback: (status: TTSStatus) => void): void {
+  setStatusChangeCallback(callback: (status: TTSStatus) => void): void {
     this.onStatusChange = callback;
   }
 
@@ -214,7 +214,13 @@ export class TTSClient {
   }
 
   private notifyStatusChange(status: TTSStatus): void {
-    this.onStatusChange?.(status);
+    if (this.onStatusChange && typeof this.onStatusChange === 'function') {
+      try {
+        this.onStatusChange(status);
+      } catch (error) {
+        console.warn('TTS status change callback error:', error);
+      }
+    }
   }
 
   // Server-side TTS support (for Piper TTS)
@@ -355,6 +361,8 @@ export const useTTS = () => {
     stop: () => ttsClient.stop(),
     getStatus: () => ttsClient.getStatus(),
     getVoices: () => ttsClient.getVoices(),
+    setStatusChangeCallback: (callback: (status: TTSStatus) => void) => ttsClient.setStatusChangeCallback(callback),
+    setErrorCallback: (callback: (error: string) => void) => ttsClient.onErrorCallback(callback),
     isSupported: ttsClient.isSupported(),
   };
 };
