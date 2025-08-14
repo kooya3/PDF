@@ -1,34 +1,31 @@
-import { SparklesCore } from "@/components/sparkles"
-import PricingCards from "@/components/pricing-cards"
+import { FeatureLayout } from '@/components/layouts/MainLayout';
+import PricingCards from "@/components/pricing-cards";
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-black/[0.96] antialiased bg-grid-white/[0.02] relative overflow-hidden">
-      {/* Ambient background with moving particles */}
-      <div className="h-full w-full absolute inset-0 z-0">
-        <SparklesCore
-          id="tsparticlesfullpage"
-          background="transparent"
-          minSize={0.6}
-          maxSize={1.4}
-          particleDensity={100}
-          className="w-full h-full"
-          particleColor="#FFFFFF"
-        />
-      </div>
+    <FeatureLayout 
+      title="Simple, Transparent Pricing"
+      description="Choose the perfect plan for your document AI needs. All plans include local processing, premium voice synthesis, and enterprise-grade security."
+    >
+      <div className="relative z-10">
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 py-24 sm:px-6 lg:px-8">
-        <div className="text-center">
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            <span className="inline-block text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-500 to-purple-600">
-              Research Smarter,
-            </span>{" "}
-            Not Harder
-          </h2>
-          <p className="mt-4 text-lg md:text-xl text-gray-400 max-w-2xl mx-auto">
-            Choose the perfect plan for your research needs. All plans include our core AI features and seamless
-            integration with popular research tools.
-          </p>
+        {/* Key Benefits */}
+        <div className="mb-12 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
+            <div className="text-2xl mb-2">🔒</div>
+            <div className="text-white font-medium">100% Private</div>
+            <div className="text-gray-400 text-sm">Local AI processing</div>
+          </div>
+          <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
+            <div className="text-2xl mb-2">🎵</div>
+            <div className="text-white font-medium">Premium Voice</div>
+            <div className="text-gray-400 text-sm">ElevenLabs TTS</div>
+          </div>
+          <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
+            <div className="text-2xl mb-2">⚡</div>
+            <div className="text-white font-medium">Universal Support</div>
+            <div className="text-gray-400 text-sm">15+ document formats</div>
+          </div>
         </div>
 
         {/* Pricing toggle */}
@@ -47,14 +44,15 @@ export default function PricingPage() {
         <div className="mt-20 text-center">
           <h3 className="text-xl text-gray-300 mb-4">Need a custom solution?</h3>
           <p className="text-gray-400 max-w-2xl mx-auto mb-8">
-            Contact our team for enterprise pricing and custom integrations tailored to your organization's needs.
+            Contact our team for enterprise pricing, custom AI model training, and specialized integrations 
+            tailored to your organization's document processing needs.
           </p>
           <button className="inline-flex items-center px-6 py-3 border border-purple-500 text-purple-400 rounded-lg hover:bg-purple-500/10 transition-colors">
             Contact Sales
           </button>
         </div>
       </div>
-    </div>
+    </FeatureLayout>
   )
 }
 
