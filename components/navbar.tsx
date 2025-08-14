@@ -21,13 +21,15 @@ export default function Navbar() {
         <div className="p-2 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl border border-purple-400/30 group-hover:border-purple-400/50 transition-all duration-300">
           <Bot className="w-6 h-6 text-purple-400 group-hover:text-purple-300 transition-colors" />
         </div>
-        <span className="text-white font-bold text-xl bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent">ResearchAI</span>
+        <span className="text-white font-bold text-xl bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent">DocuMind AI</span>
       </Link>
 
       <div className="hidden md:flex items-center space-x-8">
         <NavLink href="/features">Features</NavLink>
         <NavLink href="/how-it-works">How it Works</NavLink>
         <NavLink href="/dashboard">Dashboard</NavLink>
+        <NavLink href="/dashboard/cross-document">Cross-Document</NavLink>
+        <NavLink href="/web-scraping">Web Scraping</NavLink>
         <NavLink href="/examples">Examples</NavLink>
         <NavLink href="/pricing">Pricing</NavLink>
       </div>
