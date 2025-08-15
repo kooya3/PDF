@@ -10,7 +10,16 @@ const pinecone = new Pinecone({
 
 export const PINECONE_INDEX_NAME = 'ai-document-chat';
 
+// Cache to prevent repeated index checks
+let indexInstance: any = null;
+let indexInitialized = false;
+
 export async function initializePineconeIndex() {
+  // Return cached instance if already initialized
+  if (indexInitialized && indexInstance) {
+    return indexInstance;
+  }
+
   try {
     const indexes = await pinecone.listIndexes();
     const indexExists = indexes.indexes?.some(index => index.name === PINECONE_INDEX_NAME);
@@ -37,11 +46,12 @@ export async function initializePineconeIndex() {
       } while (indexDescription.status?.ready !== true);
       
       console.log(`Index ${PINECONE_INDEX_NAME} created and ready`);
-    } else {
-      console.log(`Index ${PINECONE_INDEX_NAME} already exists`);
     }
+    // Remove the "already exists" log to reduce noise
 
-    return pinecone.index(PINECONE_INDEX_NAME);
+    indexInstance = pinecone.index(PINECONE_INDEX_NAME);
+    indexInitialized = true;
+    return indexInstance;
   } catch (error) {
     console.error('Error initializing Pinecone index:', error);
     throw error;
