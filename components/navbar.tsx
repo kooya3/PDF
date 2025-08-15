@@ -24,23 +24,30 @@ export default function Navbar() {
         <span className="text-white font-bold text-xl bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent">DocuMind AI</span>
       </Link>
 
-      <div className="hidden md:flex items-center space-x-8">
+      <div className="hidden lg:flex items-center space-x-6">
         <NavLink href="/features">Features</NavLink>
         <NavLink href="/how-it-works">How it Works</NavLink>
-        <NavLink href="/dashboard">Dashboard</NavLink>
-        <NavLink href="/dashboard/cross-document">Cross-Document</NavLink>
         <NavLink href="/web-scraping">Web Scraping</NavLink>
-        <NavLink href="/examples">Examples</NavLink>
-        <NavLink href="/pricing">Pricing</NavLink>
       </div>
 
       {/* User area */}
       <ClerkLoaded>
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
           <SignedIn>
-            <Link href="/orders" className="text-gray-300 hover:text-white transition-colors">
-              Orders
-            </Link>
+            <div className="hidden lg:flex items-center space-x-3">
+              <Link href="/dashboard" className="text-gray-300 hover:text-white transition-colors text-sm">
+                Dashboard
+              </Link>
+              <Link href="/dashboard/cross-document" className="text-gray-300 hover:text-white transition-colors text-sm">
+                Cross-Document
+              </Link>
+              <Link href="/dashboard/document-comparison" className="text-gray-300 hover:text-white transition-colors text-sm">
+                Compare
+              </Link>
+              <Link href="/dashboard/workspaces" className="text-gray-300 hover:text-white transition-colors text-sm">
+                Workspaces
+              </Link>
+            </div>
             <div className="flex items-center space-x-2">
               <UserButton afterSignOutUrl="/" />
               <div className="hidden sm:block text-xs">
