@@ -328,6 +328,27 @@ export class OllamaClient {
     }
   }
 
+  // Helper method for backward compatibility
+  async generateResponse(prompt: string, messages: OllamaChatMessage[] = [], model?: string): Promise<string> {
+    try {
+      if (messages.length > 0) {
+        // Use chat mode if messages are provided
+        const chatResponse = await this.chat([
+          ...messages,
+          { role: 'user', content: prompt }
+        ], model);
+        return chatResponse.message.content;
+      } else {
+        // Use generate mode for simple prompts
+        const response = await this.generate(prompt, model);
+        return response.response;
+      }
+    } catch (error) {
+      console.error('Failed to generate response:', error);
+      return '';
+    }
+  }
+
   // Convenience method to get recommended models
   static getRecommendedModels(): { name: string; description: string; size: string }[] {
     return [
