@@ -98,7 +98,10 @@ export const logActivity = mutation({
 
     if (workspace) {
       await ctx.db.patch(workspace._id, {
-        "stats.lastActivity": now,
+        stats: {
+          ...workspace.stats,
+          lastActivity: now
+        },
         updatedAt: now
       });
     }
