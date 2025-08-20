@@ -38,6 +38,9 @@ export default function Navbar() {
               <Link href="/dashboard" className="text-gray-300 hover:text-white transition-colors text-sm">
                 Dashboard
               </Link>
+              <Link href="/dashboard/knowledge-bases" className="text-gray-300 hover:text-white transition-colors text-sm">
+                Knowledge Bases
+              </Link>
               <Link href="/dashboard/cross-document" className="text-gray-300 hover:text-white transition-colors text-sm">
                 Cross-Document
               </Link>
