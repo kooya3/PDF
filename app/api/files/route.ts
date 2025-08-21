@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { documentStore } from '@/lib/memory-store';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Authenticate user
     const { userId } = await auth();
