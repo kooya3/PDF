@@ -4,7 +4,7 @@ import { convex } from '@/lib/convex-client';
 import { api } from '@/convex/api';
 
 // GET - Get user's folder structure
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { userId } = await auth();
     if (!userId) {
