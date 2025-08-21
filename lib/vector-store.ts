@@ -1,19 +1,19 @@
-import { ChromaClient, OpenAIEmbeddingFunction, Collection } from 'chromadb';
-import { ollamaClient } from './ollama-client';
+import { ChromaClient, Collection } from 'chromadb';
+// Ollama client will be imported dynamically when needed
 import { DocumentChunk } from './document-parser-client';
 
 export interface DocumentEmbedding {
   id: string;
   content: string;
   embedding: number[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface SearchResult {
   id: string;
   content: string;
   score: number;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export class LocalVectorStore {
@@ -34,7 +34,7 @@ export class LocalVectorStore {
     try {
       await this.chroma.heartbeat();
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -49,7 +49,7 @@ export class LocalVectorStore {
           model: this.embeddingModel,
         }),
       });
-    } catch (error) {
+    } catch {
       // Create new collection if it doesn't exist
       return await this.chroma.createCollection({
         name: collectionName,
@@ -65,7 +65,7 @@ export class LocalVectorStore {
     collectionName: string,
     documentId: string,
     chunks: DocumentChunk[],
-    metadata: Record<string, any> = {}
+    metadata: Record<string, unknown> = {}
   ): Promise<void> {
     const collection = await this.ensureCollection(collectionName);
     
@@ -91,7 +91,7 @@ export class LocalVectorStore {
     collectionName: string,
     query: string,
     limit: number = 5,
-    filter?: Record<string, any>
+    filter?: Record<string, unknown>
   ): Promise<SearchResult[]> {
     const collection = await this.ensureCollection(collectionName);
     
@@ -109,7 +109,7 @@ export class LocalVectorStore {
           id: results.ids[0][i],
           content: results.documents[0][i] as string,
           score: 1 - (results.distances[0][i] || 0), // Convert distance to similarity score
-          metadata: (results.metadatas[0][i] as Record<string, any>) || {},
+          metadata: (results.metadatas[0][i] as Record<string, unknown>) || {},
         });
       }
     }
@@ -151,7 +151,7 @@ export class LocalVectorStore {
       const uniqueDocuments = new Set();
       if (results.metadatas?.[0]) {
         for (const metadata of results.metadatas[0]) {
-          const meta = metadata as Record<string, any>;
+          const meta = metadata as Record<string, unknown>;
           if (meta.documentId) {
             uniqueDocuments.add(meta.documentId);
           }
@@ -162,7 +162,7 @@ export class LocalVectorStore {
         totalDocuments: uniqueDocuments.size,
         totalChunks: count,
       };
-    } catch (error) {
+    } catch {
       return {
         totalDocuments: 0,
         totalChunks: 0,
