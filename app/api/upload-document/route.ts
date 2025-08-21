@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { documentStore } from '@/lib/memory-store';
 import { DocumentParser } from '@/lib/document-parser';
+import { jobQueueManager } from '@/lib/job-queue-manager';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const SUPPORTED_FORMATS = ['pdf', 'docx', 'doc', 'txt', 'md', 'csv', 'xlsx', 'html', 'json'];
@@ -114,61 +115,49 @@ export async function POST(request: NextRequest) {
     // Store in memory store for real-time updates
     documentStore.setDocument(docId, documentMetadata);
     
-    // Process document with real content extraction
-    setTimeout(async () => {
-      try {
-        // Step 1: Parsing
-        documentStore.updateDocumentStatus(docId, 'parsing', 25);
-        
-        // Get file buffer
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        
-        // Parse document content
-        const parser = new DocumentParser();
-        const parsedDoc = await parser.parseDocument(buffer, file.name);
-        
-        documentStore.updateDocumentStatus(docId, 'processing', 50);
-        
-        // Store document content in memory store
-        const documentContent = {
-          id: docId,
-          fullText: parsedDoc.content,
-          chunks: parsedDoc.chunks || [],
-          extractedData: parsedDoc.metadata
-        };
-        
-        documentStore.setDocumentContent(docId, documentContent);
-        
-        // Step 3: Generating embeddings (placeholder for now)
-        documentStore.updateDocumentStatus(docId, 'generating', 75);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Step 4: Complete with real metadata
-        const textPreview = parsedDoc.content.length > 200 ? 
-          parsedDoc.content.substring(0, 200) + '...' : 
-          parsedDoc.content;
-
-        documentStore.updateDocumentStatus(docId, 'completed', 100, {
-          wordCount: parsedDoc.metadata.wordCount,
-          pages: parsedDoc.metadata.pages,
-          chunkCount: parsedDoc.chunks?.length || 0,
-          textPreview,
-          embeddings: {
-            model: process.env.OLLAMA_MODEL || 'tinyllama',
-            dimensions: 4096,
-            chunks: parsedDoc.chunks?.length || 0
+    try {
+      // Get file buffer for job payload
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      
+      // Enqueue background job for processing
+      const jobId = await jobQueueManager.enqueueJob({
+        type: 'document_upload',
+        userId,
+        status: 'pending',
+        priority: 'normal',
+        payload: {
+          docId,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: documentType,
+          fileBuffer: buffer,
+          options: {
+            generateEmbeddings: true,
+            extractMetadata: true,
+            createChunks: true
           }
-        });
-        
-        console.log(`Document processing completed: ${docId} - ${parsedDoc.metadata.wordCount} words, ${parsedDoc.chunks?.length || 0} chunks`);
-      } catch (error) {
-        console.error(`Error processing document ${docId}:`, error);
-        documentStore.updateDocumentStatus(docId, 'failed', 0, {
-          error: error instanceof Error ? error.message : 'Processing failed'
-        });
-      }
-    }, 100);
+        },
+        progress: 0,
+        attempts: 0,
+        maxAttempts: 3,
+        retryDelay: 5000 // 5 seconds base retry delay
+      });
+
+      console.log(`Document processing job enqueued: ${jobId} for document ${docId}`);
+      
+      // Update document with job reference
+      documentStore.updateDocumentStatus(docId, 'uploading', 5, {
+        jobId,
+        message: 'Processing job queued successfully'
+      });
+
+    } catch (jobError) {
+      console.error(`Failed to enqueue processing job for ${docId}:`, jobError);
+      documentStore.updateDocumentStatus(docId, 'failed', 0, {
+        error: `Failed to start processing: ${jobError instanceof Error ? jobError.message : 'Unknown error'}`
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -177,7 +166,9 @@ export async function POST(request: NextRequest) {
       fileName: file.name,
       fileSize: file.size,
       status: 'uploading',
-      message: 'Document upload initiated - processing in background'
+      message: 'Document uploaded successfully - processing via background job queue',
+      processingMode: 'background_queue',
+      estimatedProcessingTime: '30-60 seconds'
     });
 
   } catch (error) {
