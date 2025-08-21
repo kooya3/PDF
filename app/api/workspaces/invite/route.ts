@@ -26,20 +26,37 @@ export async function POST(request: NextRequest) {
 
     // Handle invitation acceptance
     if (token) {
-      console.log(`[Workspaces] User ${userId} accepting invitation with token ${token}`);
+      const { userEmail, userName } = body;
       
-      const result = await convex.mutation(api.workspaceInvitations.acceptInvitation, {
-        token,
-        userId,
-        userEmail: '', // Will be filled from user data
-        userName: '' // Will be filled from user data
-      });
+      if (!userEmail || !userName) {
+        return NextResponse.json(
+          { error: 'userEmail and userName are required for accepting invitations' },
+          { status: 400 }
+        );
+      }
+
+      console.log(`[Workspaces] User ${userId} (${userEmail}) accepting invitation with token ${token}`);
       
-      return NextResponse.json({
-        success: true,
-        message: 'Invitation accepted successfully',
-        workspaceId: result.workspaceId
-      });
+      try {
+        const result = await convex.mutation(api.workspaceInvitations.acceptInvitation, {
+          token,
+          userId,
+          userEmail,
+          userName
+        });
+        
+        return NextResponse.json({
+          success: true,
+          message: 'Invitation accepted successfully',
+          workspaceId: result.workspaceId
+        });
+      } catch (convexError) {
+        console.error('Convex invitation acceptance failed:', convexError);
+        return NextResponse.json({ 
+          error: 'Failed to accept invitation',
+          details: convexError instanceof Error ? convexError.message : 'Database error'
+        }, { status: 500 });
+      }
     }
 
     // Handle sending invitation
@@ -62,22 +79,40 @@ export async function POST(request: NextRequest) {
     console.log(`[Workspaces] User ${userId} inviting ${invitedEmail} to workspace ${workspaceId} as ${role}`);
 
     // Get workspace details for email
-    const workspace = await convex.query(api.workspaces.getWorkspace, {
-      workspaceId,
-      userId
-    });
+    let workspace;
+    try {
+      workspace = await convex.query(api.workspaces.getWorkspace, {
+        workspaceId,
+        userId
+      });
 
-    if (!workspace) {
-      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
+      if (!workspace) {
+        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
+      }
+    } catch (convexError) {
+      console.error('Convex query failed:', convexError);
+      return NextResponse.json({ 
+        error: 'Failed to fetch workspace details',
+        details: 'Database connection timeout. Please try again.'
+      }, { status: 503 });
     }
 
     // Send invitation using Convex
-    const invitation = await convex.mutation(api.workspaceInvitations.createInvitation, {
-      workspaceId,
-      invitedBy: userId,
-      invitedEmail,
-      role
-    });
+    let invitation;
+    try {
+      invitation = await convex.mutation(api.workspaceInvitations.createInvitation, {
+        workspaceId,
+        invitedBy: userId,
+        invitedEmail,
+        role
+      });
+    } catch (convexError) {
+      console.error('Convex invitation creation failed:', convexError);
+      return NextResponse.json({ 
+        error: 'Failed to create invitation',
+        details: convexError instanceof Error ? convexError.message : 'Database connection issue'
+      }, { status: 503 });
+    }
 
     // Send email invitation using Web3Forms
     try {
@@ -173,31 +208,39 @@ export async function DELETE(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
     const workspaceId = searchParams.get('workspaceId');
 
-    // Get invitation by token
+    // Get invitation by token (public access allowed)
     if (token) {
-      console.log(`[Workspaces] Getting invitation details for token ${token}`);
+      console.log(`[Workspaces] Getting invitation details for token ${token} (public access)`);
       
-      const invitation = await convex.query(api.workspaceInvitations.getInvitation, {
-        token
-      });
-      
-      return NextResponse.json({
-        success: true,
-        invitation
-      });
+      try {
+        const invitation = await convex.query(api.workspaceInvitations.getInvitation, {
+          token
+        });
+        
+        return NextResponse.json({
+          success: true,
+          invitation
+        });
+      } catch (convexError) {
+        console.error('Failed to fetch invitation:', convexError);
+        return NextResponse.json({ 
+          error: 'Invitation not found or has expired',
+          details: convexError instanceof Error ? convexError.message : 'Invalid invitation'
+        }, { status: 404 });
+      }
     }
 
-    // Get workspace invitations
+    // Get workspace invitations (requires authentication)
     if (workspaceId) {
+      const { userId } = await auth(); // Re-check auth for workspace invitations
+      if (!userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+
       console.log(`[Workspaces] Getting invitations for workspace ${workspaceId}`);
       
       const invitations = await convex.query(api.workspaceInvitations.getWorkspaceInvitations, {
