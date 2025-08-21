@@ -29,7 +29,7 @@ export class OllamaClient {
     try {
       const response = await fetch(`${this.baseUrl}/api/tags`);
       return response.ok;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -42,7 +42,7 @@ export class OllamaClient {
       }
       
       const data = await response.json();
-      return data.models?.map((model: any) => model.name) || [];
+      return data.models?.map((model: { name: string }) => model.name) || [];
     } catch (error) {
       console.error('Error listing Ollama models:', error);
       return [];
