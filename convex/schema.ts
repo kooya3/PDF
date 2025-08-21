@@ -336,5 +336,202 @@ export default defineSchema({
   .index("by_user", ["userId"])
   .index("by_workspace_timestamp", ["workspaceId", "timestamp"])
   .index("by_action", ["action"])
+  .index("by_timestamp", ["timestamp"]),
+
+  // Workspace notifications
+  workspaceNotifications: defineTable({
+    workspaceId: v.string(),
+    type: v.union(
+      v.literal("member_joined"),
+      v.literal("project_created"),
+      v.literal("document_added"),
+      v.literal("workspace_updated"),
+      v.literal("invitation_sent")
+    ),
+    title: v.string(),
+    message: v.string(),
+    actorId: v.string(),
+    actorName: v.string(),
+    targetName: v.optional(v.string()),
+    timestamp: v.string(),
+    read: v.boolean(),
+    priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high"))
+  })
+  .index("by_workspace", ["workspaceId"])
+  .index("by_workspace_read", ["workspaceId", "read"])
   .index("by_timestamp", ["timestamp"])
+  .index("by_type", ["type"])
+  .index("by_priority", ["priority"]),
+
+  // Background job queue for processing tasks
+  jobs: defineTable({
+    jobId: v.string(),
+    type: v.union(
+      v.literal("document_upload"),
+      v.literal("document_analysis"),
+      v.literal("embedding_generation"),
+      v.literal("batch_upload")
+    ),
+    userId: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("failed"),
+      v.literal("retrying")
+    ),
+    priority: v.union(
+      v.literal("low"),
+      v.literal("normal"),
+      v.literal("high"),
+      v.literal("urgent")
+    ),
+    payload: v.string(), // JSON stringified payload data
+    progress: v.number(), // 0-100
+    currentStep: v.optional(v.string()),
+    attempts: v.number(),
+    maxAttempts: v.number(),
+    retryDelay: v.number(),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    failedAt: v.optional(v.number()),
+    scheduledFor: v.optional(v.number()), // for delayed/retry jobs
+    metadata: v.optional(v.any()) // additional job-specific data
+  })
+  .index("by_user", ["userId"])
+  .index("by_status", ["status"])
+  .index("by_type", ["type"])
+  .index("by_priority", ["priority"])
+  .index("by_user_status", ["userId", "status"])
+  .index("by_status_priority", ["status", "priority"])
+  .index("by_created", ["createdAt"])
+  .index("by_updated", ["updatedAt"])
+  .index("by_scheduled", ["scheduledFor"])
+  .index("by_status_scheduled", ["status", "scheduledFor"]),
+
+  // Knowledge Bases for website-to-knowledge-base functionality
+  knowledgeBases: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    sourceUrl: v.string(),
+    ownerId: v.string(),
+    workspaceId: v.optional(v.id("workspaces")),
+    isPrivate: v.boolean(),
+    isPublic: v.boolean(),
+    sharedWith: v.array(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("crawling"),
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("failed")
+    ),
+    crawlDepth: v.number(),
+    includePatterns: v.array(v.string()),
+    excludePatterns: v.array(v.string()),
+    vectorStoreId: v.string(),
+    totalPages: v.number(),
+    processedPages: v.number(),
+    errorCount: v.optional(v.number()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+    lastCrawledAt: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    metadata: v.object({
+      language: v.string(),
+      contentType: v.string(),
+      version: v.string(),
+      enhancedCrawl: v.optional(v.object({
+        averageQualityScore: v.number(),
+        averageRelevanceScore: v.number(),
+        averageResponseTime: v.number(),
+        categoriesFound: v.array(v.string()),
+        crawlDuration: v.number(),
+        instructionsUsed: v.string(),
+        peakConcurrency: v.number(),
+        processedInstructions: v.object({
+          confidence: v.number(),
+          primaryIntent: v.string(),
+          targetCategories: v.array(v.string())
+        }),
+        requestsPerSecond: v.number(),
+        sitemapUrlsFound: v.number(),
+        totalLinksDiscovered: v.number()
+      }))
+    })
+  })
+  .index("by_owner", ["ownerId"])
+  .index("by_workspace", ["workspaceId"])
+  .index("by_status", ["status"])
+  .index("by_public", ["isPublic"])
+  .index("by_workspace_status", ["workspaceId", "status"])
+  .index("by_owner_status", ["ownerId", "status"])
+  .searchIndex("search_knowledge_bases", {
+    searchField: "name",
+    filterFields: ["ownerId", "workspaceId", "status", "isPublic"]
+  }),
+
+  // Knowledge Base Pages - individual crawled pages
+  knowledgeBasePages: defineTable({
+    knowledgeBaseId: v.id("knowledgeBases"),
+    url: v.string(),
+    title: v.string(),
+    content: v.string(),
+    excerpt: v.string(),
+    wordCount: v.number(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("processing"),
+      v.literal("processed"),
+      v.literal("failed")
+    ),
+    vectorized: v.boolean(),
+    metadata: v.object({
+      description: v.optional(v.string()),
+      keywords: v.optional(v.array(v.string())),
+      author: v.optional(v.string()),
+      publishedDate: v.optional(v.string()),
+      lastModified: v.optional(v.string()),
+      contentType: v.optional(v.string()),
+      language: v.optional(v.string())
+    }),
+    createdAt: v.string(),
+    updatedAt: v.string()
+  })
+  .index("by_knowledge_base", ["knowledgeBaseId"])
+  .index("by_status", ["status"])
+  .index("by_vectorized", ["vectorized"])
+  .index("by_knowledge_base_status", ["knowledgeBaseId", "status"])
+  .searchIndex("search_pages", {
+    searchField: "content",
+    filterFields: ["knowledgeBaseId", "status"]
+  }),
+
+  // Knowledge Base Conversations - chat history for knowledge bases
+  knowledgeBaseConversations: defineTable({
+    knowledgeBaseId: v.id("knowledgeBases"),
+    userId: v.string(),
+    title: v.string(),
+    messages: v.array(v.object({
+      id: v.string(),
+      role: v.union(v.literal("user"), v.literal("assistant")),
+      content: v.string(),
+      timestamp: v.string(),
+      sources: v.optional(v.array(v.object({
+        url: v.string(),
+        title: v.string(),
+        excerpt: v.string(),
+        relevance: v.number()
+      })))
+    })),
+    createdAt: v.string(),
+    updatedAt: v.string()
+  })
+  .index("by_knowledge_base", ["knowledgeBaseId"])
+  .index("by_user", ["userId"])
+  .index("by_knowledge_base_user", ["knowledgeBaseId", "userId"])
+  .index("by_updated", ["updatedAt"])
 });
