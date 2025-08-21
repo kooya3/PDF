@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
 
     try {
       const document = await convex.query(api.documents.getDocument, {
-        docId: documentId,
+        documentId: documentId,
         userId
       });
 
