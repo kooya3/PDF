@@ -12,7 +12,7 @@ export interface ExtractedPDFData {
     creationDate?: Date
     modificationDate?: Date
   }
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export async function extractTextFromPDF(buffer: Buffer): Promise<ExtractedPDFData> {
@@ -46,6 +46,6 @@ export async function extractTextFromPDF(buffer: Buffer): Promise<ExtractedPDFDa
 }
 
 export function generateFileHash(buffer: Buffer): string {
-  const crypto = require('crypto')
+  const crypto = require('crypto') as typeof import('crypto')
   return crypto.createHash('md5').update(buffer).digest('hex')
 }
