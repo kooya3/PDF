@@ -89,13 +89,13 @@ export const upsertDocument = mutation({
 
 // Get document by ID
 export const getDocument = query({
-  args: { docId: v.string(), userId: v.string() },
+  args: { documentId: v.string(), userId: v.string() },
   handler: async (ctx, args) => {
     const document = await ctx.db
       .query("documents")
       .filter((q) => 
         q.and(
-          q.eq(q.field("id"), args.docId),
+          q.eq(q.field("id"), args.documentId),
           q.eq(q.field("userId"), args.userId)
         )
       )
