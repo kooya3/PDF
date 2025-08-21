@@ -3,10 +3,10 @@ import { ollamaClient } from '@/lib/ollama';
 import { getDemoResponse } from '@/lib/demo-responses';
 
 export async function POST(request: NextRequest) {
-  let messages: any[] = [];
+  let messages: Array<{role: string; content: string}> = [];
   
   try {
-    const { messages: requestMessages, model, temperature, maxTokens } = await request.json();
+    const { messages: requestMessages, model, temperature } = await request.json();
     messages = requestMessages;
 
     if (!messages || !Array.isArray(messages)) {
