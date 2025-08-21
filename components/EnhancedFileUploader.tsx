@@ -19,14 +19,20 @@ interface UploadStatus {
   progress: number | null;
   status: StatusText | null;
   fileId: string | null;
+  jobId: string | null;
+  currentStep: string | null;
   error: string | null;
+  estimatedTimeRemaining: number | null;
 }
 
 enum StatusText {
   UPLOADING = "Uploading...",
+  QUEUED = "Queued for processing...",
   PARSING = "Parsing document...",
   PROCESSING = "Processing content...",
   GENERATING = "Generating embeddings...",
+  STORING = "Storing in database...",
+  INDEXING = "Creating search indices...",
   COMPLETED = "Upload complete!",
   ERROR = "Upload failed",
 }
@@ -47,7 +53,10 @@ export default function EnhancedFileUploader() {
     progress: null,
     status: null,
     fileId: null,
+    jobId: null,
+    currentStep: null,
     error: null,
+    estimatedTimeRemaining: null,
   });
   const [systemStatus, setSystemStatus] = useState<any>(null);
   const [checkingSystem, setCheckingSystem] = useState(false);
@@ -94,32 +103,80 @@ export default function EnhancedFileUploader() {
     }
   };
 
+  // Real-time status polling
+  const pollJobStatus = useCallback(async (docId: string) => {
+    try {
+      const response = await fetch(`/api/job-status?docId=${docId}`);
+      if (!response.ok) return;
+
+      const data = await response.json();
+      if (!data.success || !data.document) return;
+
+      const { document } = data;
+      
+      // Map document status to UI status
+      const statusMap: Record<string, StatusText> = {
+        'uploading': StatusText.UPLOADING,
+        'parsing': StatusText.PARSING,
+        'processing': StatusText.PROCESSING,
+        'generating': StatusText.GENERATING,
+        'completed': StatusText.COMPLETED,
+        'failed': StatusText.ERROR
+      };
+
+      const uiStatus = statusMap[document.status] || StatusText.PROCESSING;
+
+      setUploadStatus(prev => ({
+        ...prev,
+        progress: document.progress,
+        status: uiStatus,
+        currentStep: document.status === 'processing' ? 'Processing content...' : 
+                     document.status === 'generating' ? 'Generating AI embeddings...' :
+                     document.status === 'parsing' ? 'Extracting text content...' : null,
+        error: document.error || null
+      }));
+
+      // Continue polling if not completed or failed
+      if (document.status !== 'completed' && document.status !== 'failed') {
+        setTimeout(() => pollJobStatus(docId), 1500); // Poll every 1.5 seconds
+      } else if (document.status === 'completed') {
+        // Show completion message
+        toast({
+          title: "Processing Complete!",
+          description: `${document.name} has been processed successfully. ${document.wordCount || 0} words, ${document.chunkCount || 0} chunks.`,
+        });
+      } else if (document.status === 'failed') {
+        toast({
+          variant: "destructive",
+          title: "Processing Failed",
+          description: document.error || "Document processing failed",
+        });
+      }
+
+    } catch (error) {
+      console.warn('Error polling job status:', error);
+    }
+  }, [toast]);
+
   const handleUpload = async (file: File) => {
     setUploadStatus({
       progress: 0,
       status: StatusText.UPLOADING,
       fileId: null,
+      jobId: null,
+      currentStep: 'Uploading file...',
       error: null,
+      estimatedTimeRemaining: null,
     });
 
     try {
       const formData = new FormData();
       formData.append('file', file);
 
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setUploadStatus(prev => ({
-          ...prev,
-          progress: Math.min((prev.progress || 0) + Math.random() * 10, 90),
-        }));
-      }, 500);
-
       const response = await fetch('/api/upload-document', {
         method: 'POST',
         body: formData,
       });
-
-      clearInterval(progressInterval);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -128,18 +185,23 @@ export default function EnhancedFileUploader() {
 
       const result = await response.json();
 
-      // Update status through the different phases
-      setUploadStatus({
-        progress: 100,
-        status: StatusText.COMPLETED,
+      // Update status with job information
+      setUploadStatus(prev => ({
+        ...prev,
+        progress: 10,
+        status: StatusText.QUEUED,
         fileId: result.docId,
-        error: null,
-      });
+        currentStep: 'Queued for background processing...',
+        estimatedTimeRemaining: 60000 // 1 minute estimate
+      }));
 
       toast({
         title: "Upload Successful!",
-        description: `${file.name} has been processed successfully.`,
+        description: `${file.name} uploaded and queued for processing.`,
       });
+
+      // Start real-time polling for progress
+      setTimeout(() => pollJobStatus(result.docId), 2000);
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -148,7 +210,10 @@ export default function EnhancedFileUploader() {
         progress: null,
         status: StatusText.ERROR,
         fileId: null,
+        jobId: null,
+        currentStep: null,
         error: errorMessage,
+        estimatedTimeRemaining: null,
       });
 
       toast({
@@ -191,9 +256,12 @@ export default function EnhancedFileUploader() {
 
   const statusIcons: { [key in StatusText]: JSX.Element } = {
     [StatusText.UPLOADING]: <RocketIcon className="h-20 w-20 text-blue-600 animate-pulse" />,
+    [StatusText.QUEUED]: <CircleArrowDown className="h-20 w-20 text-purple-600 animate-bounce" />,
     [StatusText.PARSING]: <FileText className="h-20 w-20 text-yellow-600 animate-spin" />,
     [StatusText.PROCESSING]: <RefreshCw className="h-20 w-20 text-orange-600 animate-spin" />,
     [StatusText.GENERATING]: <SaveIcon className="h-20 w-20 text-indigo-600 animate-bounce" />,
+    [StatusText.STORING]: <SaveIcon className="h-20 w-20 text-teal-600 animate-pulse" />,
+    [StatusText.INDEXING]: <RefreshCw className="h-20 w-20 text-cyan-600 animate-spin" />,
     [StatusText.COMPLETED]: <CheckCircleIcon className="h-20 w-20 text-green-600" />,
     [StatusText.ERROR]: <AlertTriangle className="h-20 w-20 text-red-600" />,
   };
