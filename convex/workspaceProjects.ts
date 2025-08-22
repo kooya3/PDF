@@ -56,11 +56,25 @@ export const createProject = mutation({
       .first();
 
     if (workspace) {
-      await ctx.db.patch(workspace._id, {
-        "stats.totalProjects": workspace.stats.totalProjects + 1,
-        "stats.lastActivity": now,
+      // Create a completely clean stats object, ignoring any corrupted fields
+      const cleanStats = {
+        activeMembers: workspace.stats?.activeMembers || 1,
+        totalProjects: (workspace.stats?.totalProjects || 0) + 1,
+        totalDocuments: workspace.stats?.totalDocuments || 0,
+        storageUsedMB: workspace.stats?.storageUsedMB || 0,
+        analysisCount: workspace.stats?.analysisCount || 0,
+        lastActivity: now
+      };
+
+      const updateData = {
+        stats: cleanStats,
         updatedAt: now
-      });
+      };
+      
+      console.log('Defensive workspace update - clean stats:', JSON.stringify(cleanStats, null, 2));
+      console.log('Original workspace had fields:', Object.keys(workspace).filter(k => k.startsWith('stats')));
+      
+      await ctx.db.patch(workspace._id, updateData);
     }
 
     // Log activity
@@ -203,7 +217,10 @@ export const updateProject = mutation({
 
     if (workspace) {
       await ctx.db.patch(workspace._id, {
-        "stats.lastActivity": now,
+        stats: {
+          ...workspace.stats,
+          lastActivity: now
+        },
         updatedAt: now
       });
     }
@@ -276,10 +293,14 @@ export const deleteProject = mutation({
       .first();
 
     if (workspace) {
+      const now = Date.now();
       await ctx.db.patch(workspace._id, {
-        "stats.totalProjects": Math.max(0, workspace.stats.totalProjects - 1),
-        "stats.lastActivity": Date.now(),
-        updatedAt: Date.now()
+        stats: {
+          ...workspace.stats,
+          totalProjects: Math.max(0, workspace.stats.totalProjects - 1),
+          lastActivity: now
+        },
+        updatedAt: now
       });
     }
 
