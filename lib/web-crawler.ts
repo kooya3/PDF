@@ -4,8 +4,15 @@ import { URL } from 'url';
 export interface CrawlOptions {
   maxDepth?: number;
   maxPages?: number;
+  maxBreadth?: number;                    // NEW: Links per page level (Tavily-style)
   includePatterns?: string[];
   excludePatterns?: string[];
+  selectPaths?: string[];                 // NEW: Specific path patterns to target
+  selectDomains?: string[];               // NEW: Domain patterns to include
+  excludeDomains?: string[];              // NEW: Domain patterns to exclude
+  allowExternal?: boolean;                // NEW: Whether to crawl external domains
+  instructions?: string;                  // NEW: Natural language crawling guidance
+  categories?: string[];                  // NEW: Content category filters
   respectRobots?: boolean;
   delay?: number;
   timeout?: number;
@@ -59,16 +66,33 @@ export class WebCrawler {
   private options: Required<CrawlOptions>;
 
   constructor(options: CrawlOptions = {}) {
+    // Enhanced default patterns for comprehensive crawling
+    const defaultExcludePatterns = [
+      // Admin and authentication pages
+      '/wp-admin/', '/admin/', '/login/', '/auth/', '/user/', '/account/', '/profile/',
+      // Search and pagination (often duplicate content)
+      '/search\\?', '/\\?.*page=', '/\\?.*p=', '/page/', '/\\?s=',
+      // WordPress/CMS specific
+      '/wp-content/uploads/', '/wp-includes/', '/tag/', '/category/', '/author/',
+      // File extensions to skip
+      '\\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|exe|dmg|pkg)$',
+      '\\.(jpg|jpeg|png|gif|svg|ico|css|js|woff|woff2|ttf|eot)$',
+      // Protocol prefixes to skip
+      'mailto:', 'tel:', 'ftp:', 'javascript:', 'data:',
+      // Fragment identifiers
+      '#[^/]*$'
+    ];
+
     this.options = {
-      maxDepth: options.maxDepth ?? 3,
-      maxPages: options.maxPages ?? 50,
+      maxDepth: options.maxDepth ?? 5,        // Increased for comprehensive coverage
+      maxPages: options.maxPages ?? 200,      // Increased for thorough crawling
       includePatterns: options.includePatterns ?? [],
-      excludePatterns: options.excludePatterns ?? [],
+      excludePatterns: options.excludePatterns?.length ? options.excludePatterns : defaultExcludePatterns,
       respectRobots: options.respectRobots ?? true,
-      delay: options.delay ?? 1000,
-      timeout: options.timeout ?? 30000,
+      delay: options.delay ?? 500,            // Optimized for speed while being respectful
+      timeout: options.timeout ?? 20000,      // Increased for complex pages
       followRedirects: options.followRedirects ?? true,
-      userAgent: options.userAgent ?? 'WebCrawler/1.0 (+https://example.com/bot)'
+      userAgent: options.userAgent ?? 'AI-Knowledge-Base-Crawler/2.0 (+https://ai-crawler.info/bot)'
     };
   }
 
@@ -88,10 +112,29 @@ export class WebCrawler {
       throw new Error('Invalid base URL provided');
     }
 
-    // Initialize crawl queue
+    console.log(`🚀 Starting comprehensive crawl of ${baseUrl} with enhanced options:`, {
+      maxDepth: this.options.maxDepth,
+      maxPages: this.options.maxPages,
+      delay: this.options.delay
+    });
+
+    // Initialize crawl queue with base URL
     this.crawlQueue.push({ url: normalizedUrl, depth: 0 });
 
-    console.log(`Starting crawl of ${baseUrl} with options:`, this.options);
+    // Try to discover and add sitemap URLs for comprehensive coverage
+    try {
+      const sitemapUrls = await this.discoverSitemapUrls(normalizedUrl);
+      console.log(`📍 Discovered ${sitemapUrls.length} URLs from sitemaps`);
+      
+      // Add sitemap URLs to queue (with depth 1 to ensure they're crawled)
+      for (const url of sitemapUrls.slice(0, Math.floor(this.options.maxPages / 2))) {
+        if (!this.visitedUrls.has(url)) {
+          this.crawlQueue.push({ url, depth: 1 });
+        }
+      }
+    } catch (error) {
+      console.log('⚠️ Sitemap discovery failed, continuing with standard crawl:', error instanceof Error ? error.message : 'Unknown error');
+    }
 
     // Process queue
     while (this.crawlQueue.length > 0 && this.results.length < this.options.maxPages) {
@@ -246,8 +289,10 @@ export class WebCrawler {
     const language = $('html').attr('lang') || 
                     $('meta[http-equiv="content-language"]').attr('content') || 'en';
 
-    // Extract links
+    // Enhanced link extraction for comprehensive crawling
     const links: string[] = [];
+    
+    // Standard <a> links
     $('a[href]').each((_, element) => {
       const href = $(element).attr('href');
       if (href) {
@@ -259,6 +304,56 @@ export class WebCrawler {
         }
       }
     });
+
+    // Additional link sources for comprehensive discovery
+    const additionalSelectors = [
+      'area[href]',           // Image map areas
+      'link[rel="canonical"]', // Canonical URLs (often point to main version)
+      'link[rel="alternate"]', // Alternate versions
+      '[data-href]',          // JavaScript-driven links
+      '[data-url]',           // Data attributes
+      '[onclick*="location"]', // JavaScript location redirects
+    ];
+
+    for (const selector of additionalSelectors) {
+      $(selector).each((_, element) => {
+        const href = $(element).attr('href') || $(element).attr('data-href') || $(element).attr('data-url');
+        if (href) {
+          try {
+            const absoluteUrl = new URL(href, url).href;
+            links.push(absoluteUrl);
+          } catch {
+            // Invalid URL, skip
+          }
+        }
+      });
+    }
+
+    // Extract URLs from JavaScript (common patterns)
+    const scriptContent = $('script').text();
+    if (scriptContent) {
+      // Match common URL patterns in JavaScript
+      const jsUrlPatterns = [
+        /(?:location\.href|window\.location)\s*=\s*['"](.*?)['"]/gi,
+        /url:\s*['"](.*?)['"]/gi,
+        /href:\s*['"](.*?)['"]/gi,
+        /["'](\/[^"']*?)["']/gi // Relative URLs
+      ];
+
+      for (const pattern of jsUrlPatterns) {
+        const matches = scriptContent.matchAll(pattern);
+        for (const match of matches) {
+          if (match[1]) {
+            try {
+              const absoluteUrl = new URL(match[1], url).href;
+              links.push(absoluteUrl);
+            } catch {
+              // Invalid URL, skip
+            }
+          }
+        }
+      }
+    }
 
     // Create excerpt
     const excerpt = content.substring(0, 300).trim();
@@ -284,6 +379,125 @@ export class WebCrawler {
       depth,
       status
     };
+  }
+
+  /**
+   * Discover URLs from sitemap.xml for comprehensive crawling
+   */
+  private async discoverSitemapUrls(baseUrl: string): Promise<string[]> {
+    const urls: string[] = [];
+    const urlObj = new URL(baseUrl);
+    const baseOrigin = urlObj.origin;
+
+    // Common sitemap locations
+    const sitemapCandidates = [
+      `${baseOrigin}/sitemap.xml`,
+      `${baseOrigin}/sitemap_index.xml`,
+      `${baseOrigin}/sitemaps.xml`,
+      `${baseOrigin}/sitemap.txt`,
+      `${baseOrigin}/robots.txt` // Will extract sitemap URLs from robots.txt
+    ];
+
+    for (const sitemapUrl of sitemapCandidates) {
+      try {
+        console.log(`🗺️ Checking sitemap: ${sitemapUrl}`);
+        const response = await fetch(sitemapUrl, {
+          headers: { 'User-Agent': this.options.userAgent },
+          signal: AbortSignal.timeout(this.options.timeout)
+        });
+
+        if (response.ok) {
+          const content = await response.text();
+          
+          if (sitemapUrl.endsWith('robots.txt')) {
+            // Extract sitemap URLs from robots.txt
+            const sitemapMatches = content.match(/^sitemap:\s*(.+)$/gim);
+            if (sitemapMatches) {
+              for (const match of sitemapMatches) {
+                const sitemapSubUrl = match.replace(/^sitemap:\s*/i, '').trim();
+                try {
+                  const subUrls = await this.parseSitemap(sitemapSubUrl);
+                  urls.push(...subUrls);
+                } catch {
+                  console.log(`Failed to parse sitemap from robots.txt: ${sitemapSubUrl}`);
+                }
+              }
+            }
+          } else if (sitemapUrl.endsWith('.txt')) {
+            // Plain text sitemap
+            const lines = content.split('\n').map(line => line.trim()).filter(line => line && line.startsWith('http'));
+            urls.push(...lines.slice(0, 100)); // Limit to prevent overwhelming
+          } else {
+            // XML sitemap
+            const xmlUrls = await this.parseSitemap(sitemapUrl, content);
+            urls.push(...xmlUrls);
+          }
+        }
+      } catch (error) {
+        console.log(`Failed to fetch sitemap ${sitemapUrl}:`, error instanceof Error ? error.message : 'Unknown error');
+      }
+    }
+
+    // Filter and validate URLs
+    return [...new Set(urls)]
+      .filter(url => {
+        try {
+          const urlObj = new URL(url);
+          return urlObj.origin === baseOrigin && this.shouldCrawlUrl(url);
+        } catch {
+          return false;
+        }
+      })
+      .slice(0, Math.floor(this.options.maxPages * 0.7)); // Use up to 70% of max pages for sitemap URLs
+  }
+
+  /**
+   * Parse XML sitemap to extract URLs
+   */
+  private async parseSitemap(sitemapUrl: string, content?: string): Promise<string[]> {
+    if (!content) {
+      const response = await fetch(sitemapUrl, {
+        headers: { 'User-Agent': this.options.userAgent },
+        signal: AbortSignal.timeout(this.options.timeout)
+      });
+      content = await response.text();
+    }
+
+    const urls: string[] = [];
+    
+    try {
+      // Extract URLs from XML sitemap using regex (simpler than XML parser)
+      const urlMatches = content.match(/<loc[^>]*>([^<]+)<\/loc>/gi);
+      if (urlMatches) {
+        for (const match of urlMatches) {
+          const url = match.replace(/<\/?loc[^>]*>/g, '').trim();
+          if (url.startsWith('http')) {
+            urls.push(url);
+          }
+        }
+      }
+
+      // Check if this is a sitemap index (contains other sitemaps)
+      const sitemapMatches = content.match(/<sitemap[^>]*>.*?<\/sitemap>/gis);
+      if (sitemapMatches) {
+        for (const sitemapMatch of sitemapMatches) {
+          const locMatch = sitemapMatch.match(/<loc[^>]*>([^<]+)<\/loc>/i);
+          if (locMatch) {
+            const childSitemapUrl = locMatch[1].trim();
+            try {
+              const childUrls = await this.parseSitemap(childSitemapUrl);
+              urls.push(...childUrls);
+            } catch {
+              console.log(`Failed to parse child sitemap: ${childSitemapUrl}`);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.log(`Failed to parse sitemap XML:`, error instanceof Error ? error.message : 'Unknown error');
+    }
+
+    return urls;
   }
 
   private normalizeUrl(url: string): string | null {
