@@ -104,7 +104,7 @@ export class HybridDocumentStore {
     if (!doc && userId) {
       // Fallback to Convex
       try {
-        const convexDoc = await convex.query(api.documents.getDocument, { docId, userId }) as any;
+        const convexDoc = await convex.query(api.documents.getDocument, { documentId: docId, userId }) as any;
         
         if (convexDoc) {
           // Convert Convex document back to memory store format
@@ -165,7 +165,7 @@ export class HybridDocumentStore {
     // If no content in memory and we have userId, try Convex
     if (!content && userId) {
       try {
-        const convexDoc = await convex.query(api.documents.getDocument, { docId, userId }) as any;
+        const convexDoc = await convex.query(api.documents.getDocument, { documentId: docId, userId }) as any;
         
         if (convexDoc && convexDoc.fullText) {
           content = {
