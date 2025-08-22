@@ -45,6 +45,7 @@ export default function InvitationPage() {
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     if (token) {
@@ -57,11 +58,17 @@ export default function InvitationPage() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/workspaces/invite?token=${token}`);
+      // We can fetch invitation details without authentication
+      // to show invitation info to unauthenticated users
+      const response = await fetch(`/api/workspaces/invite?token=${token}`, {
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch invitation');
+        throw new Error(errorData.details || errorData.error || 'Failed to fetch invitation');
       }
 
       const data = await response.json();
@@ -80,6 +87,13 @@ export default function InvitationPage() {
       setAccepting(true);
       setError(null);
 
+      console.log('Accepting invitation with:', {
+        token,
+        userId: user.id,
+        userEmail: user.emailAddresses[0]?.emailAddress || invitation.invitedEmail,
+        userName: user.fullName || user.firstName || 'User'
+      });
+
       const response = await fetch('/api/workspaces/invite', {
         method: 'POST',
         headers: {
@@ -95,10 +109,12 @@ export default function InvitationPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to accept invitation');
+        console.error('Invitation acceptance failed:', errorData);
+        throw new Error(errorData.details || errorData.error || 'Failed to accept invitation');
       }
 
       const data = await response.json();
+      console.log('Invitation accepted successfully:', data);
       setSuccess(true);
 
       // Redirect to workspace after a short delay
@@ -107,10 +123,16 @@ export default function InvitationPage() {
       }, 2000);
 
     } catch (err) {
+      console.error('Acceptance error:', err);
       setError(err instanceof Error ? err.message : 'Failed to accept invitation');
     } finally {
       setAccepting(false);
     }
+  };
+
+  const retryFetch = () => {
+    setRetryCount(prev => prev + 1);
+    fetchInvitation();
   };
 
   const getRoleIcon = (role: string) => {
@@ -171,12 +193,21 @@ export default function InvitationPage() {
                 <XCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
                 <h1 className="text-2xl font-bold text-white mb-2">Invalid Invitation</h1>
                 <p className="text-gray-300 mb-6">{error}</p>
-                <Button 
-                  onClick={() => router.push('/dashboard')}
-                  className="bg-gray-600 hover:bg-gray-700"
-                >
-                  Go to Dashboard
-                </Button>
+                <div className="flex gap-3 justify-center">
+                  <Button 
+                    onClick={retryFetch}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    Try Again
+                  </Button>
+                  <Button 
+                    onClick={() => router.push('/dashboard')}
+                    variant="ghost"
+                    className="bg-gray-600 hover:bg-gray-700"
+                  >
+                    Go to Dashboard
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ) : success ? (
