@@ -31,7 +31,10 @@ export const fixWorkspaceDateFormats = mutation({
       
       // Fix stats.lastActivity if it's a string
       if (workspace.stats && typeof workspace.stats.lastActivity === 'string') {
-        updates['stats.lastActivity'] = new Date(workspace.stats.lastActivity).getTime();
+        updates.stats = {
+          ...workspace.stats,
+          lastActivity: new Date(workspace.stats.lastActivity).getTime()
+        };
         needsUpdate = true;
       }
       
