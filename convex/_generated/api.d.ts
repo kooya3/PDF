@@ -17,9 +17,13 @@ import type * as analytics from "../analytics.js";
 import type * as conversations from "../conversations.js";
 import type * as documents from "../documents.js";
 import type * as folders from "../folders.js";
+import type * as jobs from "../jobs.js";
+import type * as knowledgeBases from "../knowledgeBases.js";
+import type * as migrations from "../migrations.js";
 import type * as userSettings from "../userSettings.js";
 import type * as workspaceActivities from "../workspaceActivities.js";
 import type * as workspaceInvitations from "../workspaceInvitations.js";
+import type * as workspaceNotifications from "../workspaceNotifications.js";
 import type * as workspaceProjects from "../workspaceProjects.js";
 import type * as workspaces from "../workspaces.js";
 
@@ -36,9 +40,13 @@ declare const fullApi: ApiFromModules<{
   conversations: typeof conversations;
   documents: typeof documents;
   folders: typeof folders;
+  jobs: typeof jobs;
+  knowledgeBases: typeof knowledgeBases;
+  migrations: typeof migrations;
   userSettings: typeof userSettings;
   workspaceActivities: typeof workspaceActivities;
   workspaceInvitations: typeof workspaceInvitations;
+  workspaceNotifications: typeof workspaceNotifications;
   workspaceProjects: typeof workspaceProjects;
   workspaces: typeof workspaces;
 }>;
