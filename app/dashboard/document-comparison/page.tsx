@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import DocumentComparison from '@/components/DocumentComparison';
 import { Loading } from '@/components/ui/loading';
+import Navbar from '@/components/navbar';
 
 interface Document {
   id: string;
@@ -102,7 +103,9 @@ function DocumentComparisonContent() {
           </div>
         </div>
 
-        <div className="relative z-10 container mx-auto p-6">
+        <div className="relative z-10">
+          <Navbar />
+          <div className="container mx-auto p-6">
           <div className="mb-6">
             <Button
               onClick={resetComparison}
@@ -119,6 +122,7 @@ function DocumentComparisonContent() {
             document1Name={getDocumentName(selectedDoc1)}
             document2Name={getDocumentName(selectedDoc2)}
           />
+          </div>
         </div>
       </div>
     );
@@ -133,7 +137,9 @@ function DocumentComparisonContent() {
         </div>
       </div>
 
-      <div className="relative z-10 container mx-auto p-6 space-y-6">
+      <div className="relative z-10">
+        <Navbar />
+        <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-4">
@@ -430,6 +436,7 @@ function DocumentComparisonContent() {
             </CardContent>
           </Card>
         )}
+        </div>
       </div>
     </div>
   );
